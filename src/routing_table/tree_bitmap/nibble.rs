@@ -7,13 +7,13 @@ pub(crate) struct Nibble {
 }
 
 impl Nibble {
-    #[inline(always)]
-    pub fn nil() -> Self {
+    #[inline]
+    pub const fn nil() -> Self {
         Self { value: 0, len: 0 }
     }
 
-    #[inline(always)]
-    pub fn from_octet(octet: u8, len: u8) -> Self {
+    #[inline]
+    pub const fn from_octet(octet: u8, len: u8) -> Self {
         debug_assert!(octet < 16);
         debug_assert!(len <= 4);
 
@@ -49,7 +49,7 @@ impl Nibble {
 pub(crate) struct Nibbles(Vec<Nibble>);
 
 impl Nibbles {
-    #[inline(always)]
+    #[inline]
     pub fn into_vec(self) -> Vec<Nibble> {
         self.0
     }
@@ -58,7 +58,10 @@ impl Nibbles {
 impl From<Ipv4Cidr> for Nibbles {
     fn from(cidr: Ipv4Cidr) -> Self {
         let mut bytes = cidr.octets().into_iter();
-        let mut nibbles = Vec::with_capacity(cidr.bits() as usize / 8);
+        let mut nibbles = {
+            let cap = cidr.bits() as usize / 4 + if cidr.bits() % 4 == 0 { 0 } else { 1 };
+            Vec::with_capacity(cap)
+        };
         let mut bits = cidr.bits();
         debug_assert!(bits <= 32);
         while bits > 0 {
@@ -235,6 +238,18 @@ mod tests {
                     Nibble { value: 8, len: 4 },
                     Nibble { value: 13, len: 4 },
                     Nibble { value: 15, len: 4 },
+                ],
+            ),
+            (
+                "192.168.223.0/25",
+                vec![
+                    Nibble { value: 12, len: 4 },
+                    Nibble { value: 0, len: 4 },
+                    Nibble { value: 10, len: 4 },
+                    Nibble { value: 8, len: 4 },
+                    Nibble { value: 13, len: 4 },
+                    Nibble { value: 15, len: 4 },
+                    Nibble { value: 0, len: 1 },
                 ],
             ),
             (

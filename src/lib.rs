@@ -16,8 +16,6 @@
 mod cidr;
 mod error;
 
-pub type Result<T> = core::result::Result<T, Error>;
-
 #[cfg(feature = "routing-table")]
 mod routing_table;
 
@@ -25,4 +23,4 @@ mod routing_table;
 pub use routing_table::{CidrRoutingTable, Ipv4CidrRoutingTable, Ipv6CidrRoutingTable};
 
 pub use cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
-pub use error::Error;
+pub use error::{Error, Result};

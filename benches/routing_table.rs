@@ -6,7 +6,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use cidrs::CidrRoutingTable;
 
 fn match_longest(m: &CidrRoutingTable<String>, addr: IpAddr) -> String {
-    m.match_longest(&addr).unwrap().1.clone()
+    m.match_longest(addr).unwrap().1.clone()
 }
 
 fn routing_table_match_longest_benchmark(c: &mut Criterion) {
