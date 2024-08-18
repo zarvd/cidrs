@@ -1,0 +1,27 @@
+[package]
+name = "cidrs"
+description = "CIDR Library"
+version = "0.1.0"
+authors = ["zarvd <jialun.cai@pm.me>"]
+keywords = ["Network", "IP", "CIDR"]
+homepage = "https://github.com/zarvd/cidrs"
+repository = "https://github.com/zarvd/cidrs"
+documentation = "https://docs.rs/cidrs"
+license = "MIT"
+edition = "2021"
+
+[features]
+default = []
+routing-table = []
+
+[dependencies]
+thiserror = "1.0"
+
+[dev-dependencies]
+criterion = { version = "0.5.1" }
+
+[[bench]]
+name = "routing_table"
+harness = false
+required-features = ["routing-table"]
+

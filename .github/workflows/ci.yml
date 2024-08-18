@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  lint:
+    name: Coding style check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Install just
+        uses: extractions/setup-just@v2
+      - name: Run lint
+        run: |
+          just lint
+
+  unit-test:
+    name: Unit test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Install just
+        uses: extractions/setup-just@v2
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+      - name: Run tests
+        run: |
+          just unit-test
