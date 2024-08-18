@@ -321,7 +321,7 @@ mod tests {
             assert_eq!(
                 actual,
                 expected,
-                "input: ({nibble}, {bits}) = {mask:032b}, expected: {:032b}",
+                "input: ({nibble:08b}, {bits}) = {mask:032b}, expected: {:032b}",
                 u32::from_be_bytes(expected),
             );
         }
@@ -334,7 +334,7 @@ mod tests {
             ((0b0000, 1), [0b1100_0000, 0, 0, 0]),
             ((0b1000, 1), [0b1010_0000, 0, 0, 0]),
             ((0b0000, 2), [0b1101_0000, 0, 0, 0]),
-            ((0b0100, 2), [0b1101_1000, 0, 0, 0]),
+            ((0b0100, 2), [0b1100_1000, 0, 0, 0]),
         ];
 
         for (input, expected) in tests.into_iter() {
@@ -344,7 +344,7 @@ mod tests {
             assert_eq!(
                 actual,
                 expected,
-                "input: ({nibble}, {bits}) = {mask:032b}, expected: {:032b}",
+                "input: ({nibble:08b}, {bits}) = {mask:032b}, expected: {:032b}",
                 u32::from_be_bytes(expected),
             );
         }
