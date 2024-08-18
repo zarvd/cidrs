@@ -17,7 +17,7 @@ lint:
 # Run unit tests against the current platform
 unit-test:
     cargo nextest run --all-features
-    cargo test --doc
+    cargo test --doc --all-features
 
 # Run benchmarks
 bench:

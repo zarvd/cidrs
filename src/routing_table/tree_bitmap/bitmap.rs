@@ -3,7 +3,10 @@ use core::ptr::NonNull;
 use super::node::Node;
 use super::{Nibble, Nibbles};
 
-pub struct TreeBitmap<K, V> {
+/// A tree bitmap implementation.
+///
+/// This is a tree bitmap implementation that is used to store and query CIDR ranges.
+pub(crate) struct TreeBitmap<K, V> {
     root: NonNull<Node<(K, V)>>,
     depth: usize,
 }
@@ -12,6 +15,11 @@ impl<K, V> TreeBitmap<K, V>
 where
     K: Copy + Into<Nibbles>,
 {
+    /// Creates a new tree bitmap.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_bits` - The maximum number of bits in the key. 32 for IPv4 and 128 for IPv6.
     pub fn new(max_bits: usize) -> Self {
         let root = Node::internal();
         Self {
@@ -20,33 +28,39 @@ where
         }
     }
 
-    pub fn list_matched(&self, nibbles: &[Nibble]) -> Vec<(&K, &V)> {
+    pub fn list_matched(&self, nibbles: &[Nibble]) -> Vec<(K, &V)> {
         debug_assert!(nibbles.len() <= self.depth, "key is too long");
         let mut node = self.root;
         let mut depth = 0;
         let mut rv = Vec::new();
+        let mut is_end = false;
         for nibble in nibbles {
             depth += 1;
             let p = unsafe { node.as_ref() };
             rv.extend(p.list_values(*nibble));
-            if nibble.len < 4 || depth == self.depth {
+            debug_assert!((depth == self.depth) == p.is_end());
+            if nibble.len < 4 || self.depth == depth {
+                is_end = true;
                 break;
             }
             node = if let Some(next) = p.get_child(nibble.value) {
                 next
             } else {
+                is_end = true;
                 break;
             };
         }
-        if let Some(v) = unsafe { node.as_ref() }.get_value(Nibble::nil()) {
-            rv.push(v);
+        if !is_end {
+            if let Some(v) = unsafe { node.as_ref() }.get_longest_match_value(Nibble::nil()) {
+                rv.push(v);
+            }
         }
 
-        rv.into_iter().map(|(k, v)| (k, v)).collect()
+        rv.into_iter().map(|(k, v)| (*k, v)).collect()
     }
 
-    pub fn match_exact(&self, key: &K) -> Option<&V> {
-        let nibbles = (*key).into().into_vec();
+    pub fn match_exact(&self, key: K) -> Option<&V> {
+        let nibbles = key.into().into_vec();
         debug_assert!(nibbles.len() <= self.depth, "key is too long");
 
         let mut node = self.root;
@@ -55,16 +69,18 @@ where
             depth += 1;
             let p = unsafe { node.as_ref() };
 
+            debug_assert!((depth == self.depth) == p.is_end());
             if nibble.len < 4 || depth == self.depth {
-                return p.get_value(nibble).map(|(_, v)| v);
+                return p.get_exact_match_value(nibble).map(|(_, v)| v);
             }
             node = p.get_child(nibble.value)?;
         }
         let p = unsafe { node.as_ref() };
-        p.get_value(Nibble::nil()).map(|(_, v)| v)
+
+        p.get_exact_match_value(Nibble::nil()).map(|(_, v)| v)
     }
 
-    pub fn match_longest(&self, nibbles: &[Nibble]) -> Option<(&K, &V)> {
+    pub fn match_longest(&self, nibbles: &[Nibble]) -> Option<(K, &V)> {
         debug_assert!(nibbles.len() <= self.depth, "key is too long");
         let mut node = self.root;
         let mut depth = 0;
@@ -73,7 +89,7 @@ where
             depth += 1;
             let p = unsafe { node.as_ref() };
 
-            if let Some((k, v)) = p.get_value(*nibble) {
+            if let Some((k, v)) = p.get_longest_match_value(*nibble) {
                 rv = Some((k, v));
             }
 
@@ -86,11 +102,11 @@ where
                 break;
             };
         }
-        if let Some((k, v)) = unsafe { node.as_ref() }.get_value(Nibble::nil()) {
+        if let Some((k, v)) = unsafe { node.as_ref() }.get_longest_match_value(Nibble::nil()) {
             rv = Some((k, v));
         }
 
-        rv
+        rv.into_iter().map(|(k, v)| (*k, v)).next()
     }
 
     pub fn insert(&mut self, range: K, value: V) -> Option<V> {
@@ -180,7 +196,7 @@ mod tests {
             let k = ip.parse::<Ipv4Cidr>().unwrap();
             let v = ip.to_owned();
             assert!(map.insert(k, v.clone()).is_none());
-            assert_eq!(map.match_exact(&k), Some(&v));
+            assert_eq!(map.match_exact(k), Some(&v));
         }
     }
 
@@ -230,7 +246,7 @@ mod tests {
             let actual = map
                 .list_matched(&k)
                 .into_iter()
-                .map(|(k, v)| (*k, v.clone()))
+                .map(|(k, v)| (k, v.clone()))
                 .collect::<Vec<_>>();
 
             let expected = parse_ipv4_cidrs(&expected)

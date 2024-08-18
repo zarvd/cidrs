@@ -3,8 +3,24 @@ use core::hash::{Hash, Hasher};
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use core::str::FromStr;
 
-use super::{Error, Result};
+use super::error::{CidrParseKind, Error, Result};
 
+/// An IPv4 CIDR block.
+///
+/// IPv4 CIDR blocks are represented as an IPv4 address and a number of bits.
+/// See [`Cidr`] for a type encompassing both IPv4 and IPv6 CIDR blocks.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv4Cidr;
+///
+/// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+/// assert_eq!("192.168.0.0/24".parse::<Ipv4Cidr>().unwrap(), cidr);
+/// assert!("192.168.0.0".parse::<Ipv4Cidr>().is_err());
+/// assert!("192.168.0.0/33".parse::<Ipv4Cidr>().is_err());
+/// assert!("::/0".parse::<Ipv4Cidr>().is_err());
+/// ```
 #[derive(Copy, Clone)]
 pub struct Ipv4Cidr {
     octets: [u8; 4],
@@ -12,88 +28,153 @@ pub struct Ipv4Cidr {
 }
 
 impl Ipv4Cidr {
+    /// The maximum number of bits in an IPv4 CIDR block.
     pub const MAX_BITS: u8 = 32;
 
     /// Returns the mask for the given number of bits.
     ///
-    /// # Examples:
+    /// # Examples
     ///
     /// ```
     /// use cidrs::Ipv4Cidr;
     ///
     /// assert_eq!(Ipv4Cidr::mask_of(0), 0);
     /// ```
-    pub const fn mask_of(n: u8) -> u32 {
-        if n == 0 {
+    pub const fn mask_of(bits: u8) -> u32 {
+        if bits == 0 {
             return 0;
         }
-        u32::MAX << (32 - n)
+        u32::MAX << (32 - bits)
     }
 
-    #[inline(always)]
-    pub fn new(a: u8, b: u8, c: u8, d: u8, bits: u8) -> Result<Self> {
+    /// Creates a new IPv4 CIDR block from four octets and a number of bits.
+    ///
+    /// The result will represent the IP address `octets` with the mask applied.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    ///
+    /// assert_eq!(cidr.to_string(), "192.168.0.0/24".to_owned());
+    /// ```
+    #[inline]
+    pub const fn new(octets: [u8; 4], bits: u8) -> Result<Self> {
         if bits > 32 {
-            return Err(Error::InvalidMask {
-                min: 0,
-                max: 32,
-                actual: bits,
-            });
+            return Err(Error::OverflowIpv4CidrBit(bits));
         }
 
-        let octets = (u32::from_be_bytes([a, b, c, d]) & Self::mask_of(bits)).to_be_bytes();
+        let octets = (u32::from_be_bytes(octets) & Self::mask_of(bits)).to_be_bytes();
 
         Ok(Self { octets, bits })
     }
 
-    #[inline(always)]
-    pub fn from_ip_bits(ip: u32, bits: u8) -> Result<Self> {
+    /// Creates a new IPv4 CIDR block from an IP address and a number of bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv4Addr;
+    ///
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::from_ip(Ipv4Addr::new(192, 168, 0, 0), 24).unwrap();
+    /// ```
+    #[inline]
+    pub fn from_ip<I>(ip: I, bits: u8) -> Result<Self>
+    where
+        I: Into<Ipv4Addr>,
+    {
         if bits > 32 {
-            return Err(Error::InvalidMask {
-                min: 0,
-                max: 32,
-                actual: bits,
-            });
+            return Err(Error::OverflowIpv6CidrBit(bits));
         }
 
-        let octets = (ip & Self::mask_of(bits)).to_be_bytes();
+        let octets = (ip.into().to_bits() & Self::mask_of(bits)).to_be_bytes();
 
         Ok(Self { octets, bits })
-    }
-
-    #[inline(always)]
-    pub fn from_ip(ip: Ipv4Addr, bits: u8) -> Result<Self> {
-        Self::from_ip_bits(ip.to_bits(), bits)
     }
 
     /// Returns the IP address with the mask applied.
-    #[inline(always)]
-    pub fn addr(&self) -> Ipv4Addr {
-        Ipv4Addr::from(self.octets)
-    }
-
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv4Addr;
+    ///
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
+    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0));  // truncated
+    /// ```
     #[inline]
-    pub fn masked(&self) -> u32 {
-        u32::from_be_bytes(self.octets) & Self::mask_of(self.bits)
+    pub const fn addr(&self) -> Ipv4Addr {
+        Ipv4Addr::from_bits(u32::from_be_bytes(self.octets))
     }
 
     /// Returns the mask for the CIDR block.
-    #[inline(always)]
-    pub fn mask(&self) -> u32 {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
+    /// assert_eq!(cidr.mask(), 0xff_ff_ff_00);
+    #[inline]
+    pub const fn mask(&self) -> u32 {
         Self::mask_of(self.bits)
     }
 
-    #[inline(always)]
-    pub fn octets(&self) -> [u8; 4] {
+    /// Returns the four eight-bit integers that make up this CIDR.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
+    ///
+    /// assert_eq!(cidr.octets(), [192, 168, 0, 0]);
+    /// ```
+    #[inline]
+    pub const fn octets(&self) -> [u8; 4] {
         self.octets
     }
 
-    #[inline(always)]
-    pub fn bits(&self) -> u8 {
+    /// Returns the number of bits in the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
+    ///
+    /// assert_eq!(cidr.bits(), 24);
+    /// ```
+    #[inline]
+    pub const fn bits(&self) -> u8 {
         self.bits
     }
 
-    #[inline(always)]
-    pub fn contains(&self, addr: Ipv4Addr) -> bool {
+    /// Returns [`true`] if the CIDR block contains the given IP address.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv4Addr;
+    ///
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
+    ///
+    /// assert!(cidr.contains(Ipv4Addr::new(192, 168, 0, 1)));
+    /// assert!(!cidr.contains(Ipv4Addr::new(192, 168, 1, 1)));
+    /// ```
+    #[inline]
+    pub const fn contains(&self, addr: Ipv4Addr) -> bool {
         let addr = addr.to_bits();
         let mask = self.mask();
         let cidr = u32::from_be_bytes(self.octets);
@@ -101,9 +182,28 @@ impl Ipv4Cidr {
         addr & mask == cidr
     }
 
-    #[inline(always)]
-    pub fn overlaps(&self, other: &Self) -> bool {
-        let min_bits = self.bits.min(other.bits);
+    /// Returns [`true`] if the CIDR block overlaps with the given CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr1 = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// let cidr2 = Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap();
+    /// let cidr3 = Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap();
+    ///
+    /// assert!(!cidr1.overlaps(&cidr2));
+    /// assert!(cidr1.overlaps(&cidr3));
+    /// assert!(cidr2.overlaps(&cidr3));
+    /// ```
+    #[inline]
+    pub const fn overlaps(&self, other: &Self) -> bool {
+        let min_bits = if self.bits < other.bits {
+            self.bits
+        } else {
+            other.bits
+        };
         let mask = Self::mask_of(min_bits);
 
         let x = u32::from_be_bytes(self.octets);
@@ -141,6 +241,18 @@ impl Hash for Ipv4Cidr {
 }
 
 impl From<Ipv4Addr> for Ipv4Cidr {
+    /// Creates a new IPv4 CIDR block from an IPv4 address with a mask of 32 bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv4Addr;
+    ///
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::from(Ipv4Addr::new(192, 168, 0, 0));
+    /// assert_eq!(cidr.bits(), 32)
+    /// ```
     fn from(addr: Ipv4Addr) -> Self {
         Self::from_ip(addr, 32).unwrap()
     }
@@ -149,8 +261,8 @@ impl From<Ipv4Addr> for Ipv4Cidr {
 impl TryFrom<([u8; 4], u8)> for Ipv4Cidr {
     type Error = Error;
 
-    fn try_from((octets, bits): ([u8; 4], u8)) -> std::result::Result<Self, Self::Error> {
-        Self::from_ip_bits(u32::from_be_bytes(octets), bits)
+    fn try_from((octets, bits): ([u8; 4], u8)) -> core::result::Result<Self, Self::Error> {
+        Self::from_ip(octets, bits)
     }
 }
 
@@ -158,14 +270,36 @@ impl FromStr for Ipv4Cidr {
     type Err = Error;
 
     fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
-        let (addr, bits) = s.split_once('/').ok_or(Error::ParseError)?;
-        Ipv4Cidr::from_ip(
-            addr.parse().map_err(|_| Error::ParseError)?,
-            bits.parse().map_err(|_| Error::ParseError)?,
-        )
+        let (addr, bits) = s
+            .split_once('/')
+            .ok_or(Error::CidrParseError(CidrParseKind::Ipv4))?;
+        let addr = addr
+            .parse::<Ipv4Addr>()
+            .map_err(|_| Error::CidrParseError(CidrParseKind::Ipv4))?;
+        let bits = bits
+            .parse()
+            .map_err(|_| Error::CidrParseError(CidrParseKind::Ipv4))?;
+
+        Ipv4Cidr::from_ip(addr, bits)
     }
 }
 
+/// An IPv6 CIDR block.
+///
+/// IPv6 CIDR blocks are represented as an IPv6 address and a number of bits.
+/// See [`Cidr`] for a type encompassing both IPv4 and IPv6 CIDR blocks.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv6Cidr;
+///
+/// let cidr = Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap();
+/// assert_eq!(cidr.to_string(), "::/64".to_owned());
+/// assert!("::/129".parse::<Ipv6Cidr>().is_err());
+/// assert!("::1".parse::<Ipv6Cidr>().is_err());
+/// assert!("192.168.0.0/24".parse::<Ipv6Cidr>().is_err());
+/// ```
 #[derive(Copy, Clone)]
 pub struct Ipv6Cidr {
     octets: [u8; 16],
@@ -173,45 +307,44 @@ pub struct Ipv6Cidr {
 }
 
 impl Ipv6Cidr {
+    /// The maximum number of bits in an IPv6 CIDR block.
     pub const MAX_BITS: u8 = 128;
 
     /// Returns the mask for the given number of bits.
     ///
-    /// # Examples:
+    /// # Examples
     ///
     /// ```
     /// use cidrs::Ipv6Cidr;
     ///
     /// assert_eq!(Ipv6Cidr::mask_of(0), 0);
     /// ```
-    pub const fn mask_of(n: u8) -> u128 {
-        if n == 0 {
+    pub const fn mask_of(bits: u8) -> u128 {
+        if bits == 0 {
             return 0;
         }
-        u128::MAX << (128 - n)
+        u128::MAX << (128 - bits)
     }
 
-    #[inline(always)]
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        a: u16,
-        b: u16,
-        c: u16,
-        d: u16,
-        e: u16,
-        f: u16,
-        g: u16,
-        h: u16,
-        bits: u8,
-    ) -> Result<Self> {
+    /// Creates a new IPv6 CIDR block from 16 octets and a number of bits.
+    ///
+    /// The result will represent the IP address `octets` with the mask applied.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    /// assert_eq!(cidr.to_string(), "::/64".to_owned());
+    /// ```
+    #[inline]
+    pub const fn new(octets: [u16; 8], bits: u8) -> Result<Self> {
         if bits > 128 {
-            return Err(Error::InvalidMask {
-                min: 0,
-                max: 128,
-                actual: bits,
-            });
+            return Err(Error::OverflowIpv6CidrBit(bits));
         }
 
+        let [a, b, c, d, e, f, g, h] = octets;
         let addr16 = [
             a.to_be(),
             b.to_be(),
@@ -223,57 +356,61 @@ impl Ipv6Cidr {
             h.to_be(),
         ];
 
-        use core::mem::transmute;
-        let octets = unsafe { transmute::<[u16; 8], [u8; 16]>(addr16) };
-
+        let octets = unsafe { core::mem::transmute::<[u16; 8], [u8; 16]>(addr16) };
         let octets = (u128::from_be_bytes(octets) & Self::mask_of(bits)).to_be_bytes();
 
         Ok(Self { octets, bits })
     }
 
-    #[inline(always)]
-    pub fn from_ip_bits(ip: u128, bits: u8) -> Result<Self> {
+    /// Creates a new IPv6 CIDR block from an IP address and a number of bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv6Addr;
+    ///
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::from_ip(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0), 64).unwrap();
+    /// assert_eq!(cidr.to_string(), "::/64".to_owned());
+    /// ```
+    #[inline]
+    pub fn from_ip<I>(ip: I, bits: u8) -> Result<Self>
+    where
+        I: Into<Ipv6Addr>,
+    {
         if bits > 128 {
-            return Err(Error::InvalidMask {
-                min: 0,
-                max: 128,
-                actual: bits,
-            });
+            return Err(Error::OverflowIpv6CidrBit(bits));
         }
 
-        let octets = (ip & Self::mask_of(bits)).to_be_bytes();
+        let octets = (ip.into().to_bits() & Self::mask_of(bits)).to_be_bytes();
 
         Ok(Self { octets, bits })
     }
 
-    #[inline(always)]
-    pub fn from_ip(ip: Ipv6Addr, bits: u8) -> Result<Self> {
-        Self::from_ip_bits(ip.to_bits(), bits)
-    }
-
     /// Returns the IP address with the mask applied.
-    #[inline(always)]
-    pub fn addr(&self) -> Ipv6Addr {
-        Ipv6Addr::from(self.octets)
+    #[inline]
+    pub const fn addr(&self) -> Ipv6Addr {
+        Ipv6Addr::from_bits(u128::from_be_bytes(self.octets))
     }
 
-    #[inline(always)]
-    pub fn mask(&self) -> u128 {
+    #[inline]
+    pub const fn mask(&self) -> u128 {
         Self::mask_of(self.bits)
     }
 
-    #[inline(always)]
-    pub fn octets(&self) -> [u8; 16] {
+    #[inline]
+    pub const fn octets(&self) -> [u8; 16] {
         self.octets
     }
 
-    #[inline(always)]
-    pub fn bits(&self) -> u8 {
+    #[inline]
+    pub const fn bits(&self) -> u8 {
         self.bits
     }
 
-    #[inline(always)]
-    pub fn contains(&self, addr: Ipv6Addr) -> bool {
+    #[inline]
+    pub const fn contains(&self, addr: Ipv6Addr) -> bool {
         let addr = addr.to_bits();
         let mask = self.mask();
         let cidr = u128::from_be_bytes(self.octets);
@@ -281,9 +418,13 @@ impl Ipv6Cidr {
         addr & mask == cidr
     }
 
-    #[inline(always)]
-    pub fn overlaps(&self, other: &Self) -> bool {
-        let min_bits = self.bits.min(other.bits);
+    #[inline]
+    pub const fn overlaps(&self, other: &Self) -> bool {
+        let min_bits = if self.bits < other.bits {
+            self.bits
+        } else {
+            other.bits
+        };
         let mask = Self::mask_of(min_bits);
 
         let x = u128::from_be_bytes(self.octets);
@@ -321,6 +462,18 @@ impl Hash for Ipv6Cidr {
 }
 
 impl From<Ipv6Addr> for Ipv6Cidr {
+    /// Creates a new IPv6 CIDR block from an IPv6 address with a mask of 128 bits.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::net::Ipv6Addr;
+    ///
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::from(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0));
+    /// assert_eq!(cidr.bits(), 128);
+    /// ```
     fn from(addr: Ipv6Addr) -> Self {
         Self::from_ip(addr, 128).unwrap()
     }
@@ -330,7 +483,7 @@ impl TryFrom<([u8; 16], u8)> for Ipv6Cidr {
     type Error = Error;
 
     fn try_from((octets, bits): ([u8; 16], u8)) -> std::result::Result<Self, Self::Error> {
-        Self::from_ip_bits(u128::from_be_bytes(octets), bits)
+        Self::from_ip(octets, bits)
     }
 }
 
@@ -338,14 +491,24 @@ impl FromStr for Ipv6Cidr {
     type Err = Error;
 
     fn from_str(s: &str) -> core::result::Result<Self, Self::Err> {
-        let (addr, bits) = s.split_once('/').ok_or(Error::ParseError)?;
-        Ipv6Cidr::from_ip(
-            addr.parse().map_err(|_| Error::ParseError)?,
-            bits.parse().map_err(|_| Error::ParseError)?,
-        )
+        let (addr, bits) = s
+            .split_once('/')
+            .ok_or(Error::CidrParseError(CidrParseKind::Ipv6))?;
+        let addr = addr
+            .parse::<Ipv6Addr>()
+            .map_err(|_| Error::CidrParseError(CidrParseKind::Ipv6))?;
+        let bits = bits
+            .parse()
+            .map_err(|_| Error::CidrParseError(CidrParseKind::Ipv6))?;
+
+        Ipv6Cidr::from_ip(addr, bits)
     }
 }
 
+/// An IP CIDR, either IPv4 or IPv6.
+///
+/// This enum can contain either an [`Ipv4Cidr`] or an [`Ipv6Cidr`], see their
+/// respective documentation for more details.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Cidr {
     V4(Ipv4Cidr),
@@ -353,19 +516,64 @@ pub enum Cidr {
 }
 
 impl Cidr {
-    pub fn from_ip(ip: IpAddr, bits: u8) -> Result<Self> {
-        match ip {
+    pub fn from_ip<I>(ip: I, bits: u8) -> Result<Self>
+    where
+        I: Into<IpAddr>,
+    {
+        match ip.into() {
             IpAddr::V4(v4) => Ok(Cidr::V4(Ipv4Cidr::from_ip(v4, bits)?)),
             IpAddr::V6(v6) => Ok(Cidr::V6(Ipv6Cidr::from_ip(v6, bits)?)),
         }
     }
 
     /// Returns the IP address with the mask applied.
-    pub fn addr(&self) -> IpAddr {
+    pub const fn addr(&self) -> IpAddr {
         match self {
             Cidr::V4(v4) => IpAddr::V4(v4.addr()),
             Cidr::V6(v6) => IpAddr::V6(v6.addr()),
         }
+    }
+
+    #[inline]
+    pub const fn bits(&self) -> u8 {
+        match self {
+            Cidr::V4(v4) => v4.bits(),
+            Cidr::V6(v6) => v6.bits(),
+        }
+    }
+
+    #[inline]
+    pub const fn contains(&self, addr: IpAddr) -> bool {
+        match (self, addr) {
+            (Cidr::V4(lh), IpAddr::V4(rh)) => lh.contains(rh),
+            (Cidr::V6(lh), IpAddr::V6(rh)) => lh.contains(rh),
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub const fn overlaps(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Cidr::V4(lh), Cidr::V4(rh)) => lh.overlaps(rh),
+            (Cidr::V6(lh), Cidr::V6(rh)) => lh.overlaps(rh),
+            _ => false,
+        }
+    }
+
+    /// Returns [`true`] if the CIDR block is an [`IPv4` CIDR block], and [`false`] otherwise.
+    ///
+    /// [`IPv4` CIDR block]: Cidr::V4
+    #[inline]
+    pub const fn is_ipv4(&self) -> bool {
+        matches!(self, Cidr::V4(_))
+    }
+
+    /// Returns [`true`] if the CIDR block is an [`IPv6` CIDR block], and [`false`] otherwise.
+    ///
+    /// [`IPv6` CIDR block]: Cidr::V6
+    #[inline]
+    pub const fn is_ipv6(&self) -> bool {
+        matches!(self, Cidr::V6(_))
     }
 }
 
@@ -375,6 +583,12 @@ impl Display for Cidr {
             Cidr::V4(v4) => Display::fmt(&v4, f),
             Cidr::V6(v6) => Display::fmt(&v6, f),
         }
+    }
+}
+
+impl Debug for Cidr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Cidr({})", self)
     }
 }
 
@@ -394,6 +608,36 @@ impl TryFrom<([u8; 16], u8)> for Cidr {
     }
 }
 
+impl From<Ipv4Cidr> for Cidr {
+    fn from(v4: Ipv4Cidr) -> Self {
+        Cidr::V4(v4)
+    }
+}
+
+impl From<Ipv6Cidr> for Cidr {
+    fn from(v6: Ipv6Cidr) -> Self {
+        Cidr::V6(v6)
+    }
+}
+
+impl PartialEq<Ipv4Cidr> for Cidr {
+    fn eq(&self, other: &Ipv4Cidr) -> bool {
+        match self {
+            Cidr::V4(v4) => v4 == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Ipv6Cidr> for Cidr {
+    fn eq(&self, other: &Ipv6Cidr) -> bool {
+        match self {
+            Cidr::V6(v6) => v6 == other,
+            _ => false,
+        }
+    }
+}
+
 impl FromStr for Cidr {
     type Err = Error;
 
@@ -406,7 +650,7 @@ impl FromStr for Cidr {
             return Ok(Cidr::V6(v6));
         }
 
-        Err(Error::ParseError)
+        Err(Error::CidrParseError(CidrParseKind::Ip))
     }
 }
 
@@ -415,60 +659,81 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_v4_mask() {
-        let cases = [
-            (0, Ipv4Addr::new(0, 0, 0, 0)),
-            (8, Ipv4Addr::new(255, 0, 0, 0)),
-            (16, Ipv4Addr::new(255, 255, 0, 0)),
-            (24, Ipv4Addr::new(255, 255, 255, 0)),
-            (32, Ipv4Addr::new(255, 255, 255, 255)),
+    fn test_ipv4_mask() {
+        let tests = [
+            (0, [0, 0, 0, 0]),
+            (1, [0x80, 0, 0, 0]),
+            (2, [0xc0, 0, 0, 0]),
+            (3, [0xe0, 0, 0, 0]),
+            (4, [0xf0, 0, 0, 0]),
+            (5, [0xf8, 0, 0, 0]),
+            (6, [0xfc, 0, 0, 0]),
+            (7, [0xfe, 0, 0, 0]),
+            (8, [0xff, 0, 0, 0]),
+            (16, [0xff, 0xff, 0, 0]),
+            (20, [0xff, 0xff, 0xf0, 0]),
+            (24, [0xff, 0xff, 0xff, 0]),
+            (32, [0xff, 0xff, 0xff, 0xff]),
         ];
 
-        for (bit, expected) in cases {
-            assert_eq!(Ipv4Addr::from(Ipv4Cidr::mask_of(bit)), expected);
+        for (bit, expected) in tests {
+            let expected = u32::from_be_bytes(expected);
+            let actual = Ipv4Cidr::mask_of(bit);
+            assert_eq!(actual, expected);
         }
     }
 
     #[test]
-    fn test_v6_mask() {
-        let cases = [
-            (0, Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)),
-            (16, Ipv6Addr::new(0xffff, 0, 0, 0, 0, 0, 0, 0)),
-            (32, Ipv6Addr::new(0xffff, 0xffff, 0, 0, 0, 0, 0, 0)),
-            (48, Ipv6Addr::new(0xffff, 0xffff, 0xffff, 0, 0, 0, 0, 0)),
+    #[should_panic]
+    fn test_ipv4_mask_overflow() {
+        Ipv4Cidr::mask_of(33);
+    }
+
+    #[test]
+    fn test_ipv6_mask() {
+        let tests = [
+            (0, [0x00; 16]),
             (
-                64,
-                Ipv6Addr::new(0xffff, 0xffff, 0xffff, 0xffff, 0, 0, 0, 0),
+                1,
+                [
+                    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00,
+                ],
             ),
             (
-                80,
-                Ipv6Addr::new(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0, 0, 0),
+                2,
+                [
+                    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00,
+                ],
             ),
             (
-                96,
-                Ipv6Addr::new(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0, 0),
+                3,
+                [
+                    0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00,
+                ],
             ),
-            (
-                112,
-                Ipv6Addr::new(0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0),
-            ),
-            (
-                128,
-                Ipv6Addr::new(
-                    0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff,
-                ),
-            ),
+            (128, [0xff; 16]),
         ];
 
-        for (bit, expected) in cases {
-            assert_eq!(Ipv6Addr::from(Ipv6Cidr::mask_of(bit)), expected);
+        for (bit, expected) in tests {
+            let expected = u128::from_be_bytes(expected);
+            let actual = Ipv6Cidr::mask_of(bit);
+            assert_eq!(actual, expected);
         }
     }
 
     #[test]
-    fn test_cidr_v4() {
+    #[should_panic]
+    fn test_ipv6_mask_overflow() {
+        Ipv6Cidr::mask_of(129);
+    }
+
+    #[test]
+    fn test_ipv4_cidr_contains() {
         {
-            let ret = Ipv4Cidr::new(192, 168, 0, 1, 0);
+            let ret = Ipv4Cidr::new([192, 168, 0, 1], 0);
             assert!(ret.is_ok());
             let cidr = ret.unwrap();
             assert_eq!(cidr.bits(), 0);
@@ -478,7 +743,7 @@ mod tests {
             assert!(cidr.contains(Ipv4Addr::new(0, 0, 0, 0)));
         }
         {
-            let ret = Ipv4Cidr::new(192, 168, 0, 1, 24);
+            let ret = Ipv4Cidr::new([192, 168, 0, 1], 24);
             assert!(ret.is_ok());
             let cidr = ret.unwrap();
             assert_eq!(cidr.bits(), 24);
@@ -491,7 +756,7 @@ mod tests {
         }
 
         {
-            let ret = Ipv4Cidr::new(192, 168, 24, 1, 24);
+            let ret = Ipv4Cidr::new([192, 168, 24, 1], 24);
             assert!(ret.is_ok());
             let cidr = ret.unwrap();
             assert_eq!(cidr.bits(), 24);
@@ -505,7 +770,7 @@ mod tests {
         }
 
         {
-            let ret = Ipv4Cidr::new(192, 168, 24, 1, 16);
+            let ret = Ipv4Cidr::new([192, 168, 24, 1], 16);
             assert!(ret.is_ok());
             let cidr = ret.unwrap();
             assert_eq!(cidr.bits(), 16);

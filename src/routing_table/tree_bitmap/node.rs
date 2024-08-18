@@ -106,7 +106,7 @@ pub(super) struct Node<V> {
 impl<V> Node<V> {
     const END_NODE_BIT: u32 = 1 << 16;
 
-    #[inline(always)]
+    #[inline]
     fn empty() -> Self {
         use std::sync::atomic::AtomicU64;
         static ID: AtomicU64 = AtomicU64::new(1);
@@ -126,7 +126,7 @@ impl<V> Node<V> {
     }
 
     /// Create a internal node
-    #[inline(always)]
+    #[inline]
     pub fn internal() -> NonNull<Self> {
         let boxed = Box::new(Self::empty());
         let ptr = Box::into_raw(boxed);
@@ -134,7 +134,7 @@ impl<V> Node<V> {
     }
 
     /// Create an end node
-    #[inline(always)]
+    #[inline]
     pub fn end() -> NonNull<Self> {
         let mut me = Self::empty();
         me.bitmap |= Self::END_NODE_BIT;
@@ -143,13 +143,13 @@ impl<V> Node<V> {
         NonNull::new(ptr).unwrap()
     }
 
-    #[inline(always)]
-    pub fn is_end(&self) -> bool {
+    #[inline]
+    pub const fn is_end(&self) -> bool {
         self.bitmap & Self::END_NODE_BIT != 0
     }
 
-    #[inline(always)]
-    fn value_bits(&self) -> u32 {
+    #[inline]
+    const fn value_bits(&self) -> u32 {
         if self.is_end() {
             self.bitmap & !Self::END_NODE_BIT
         } else {
@@ -157,12 +157,13 @@ impl<V> Node<V> {
         }
     }
 
-    #[inline(always)]
-    fn child_bits(&self) -> u32 {
+    #[inline]
+    const fn child_bits(&self) -> u32 {
         debug_assert!(!self.is_end());
         self.bitmap & 0x0000_ffff
     }
 
+    #[inline]
     pub fn list_values(&self, nibble: Nibble) -> Vec<&V> {
         let mask = match_value_mask(nibble.value, nibble.len as u32);
         let masked = self.value_bits() & mask;
@@ -173,8 +174,8 @@ impl<V> Node<V> {
             .collect()
     }
 
-    #[inline(always)]
-    pub fn get_value(&self, nibble: Nibble) -> Option<&V> {
+    #[inline]
+    pub fn get_longest_match_value(&self, nibble: Nibble) -> Option<&V> {
         let mask = match_value_mask(nibble.value, nibble.len as _);
         let offset = (self.value_bits() & mask).trailing_zeros() as usize;
         if offset == 32 {
@@ -185,7 +186,19 @@ impl<V> Node<V> {
         self.values[index].as_ref().map(|p| p.as_ref())
     }
 
-    #[inline(always)]
+    #[inline]
+    pub fn get_exact_match_value(&self, nibble: Nibble) -> Option<&V> {
+        let mask = exact_value_mask(nibble.value, nibble.len as _);
+        let offset = (self.value_bits() & mask).trailing_zeros() as usize;
+        if offset == 32 {
+            return None;
+        }
+
+        let index = 31 - offset;
+        self.values[index].as_ref().map(|p| p.as_ref())
+    }
+
+    #[inline]
     pub fn set_value(&mut self, nibble: Nibble, value: V) {
         let mask = exact_value_mask(nibble.value, nibble.len as _);
         let offset = mask.trailing_zeros() as usize;
@@ -197,7 +210,7 @@ impl<V> Node<V> {
         self.values[index] = Some(Box::new(value));
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn remove_value(&mut self, nibble: Nibble) -> Option<V> {
         let mask = exact_value_mask(nibble.value, nibble.len as _);
         let offset = (self.value_bits() & mask).trailing_zeros() as usize;
@@ -208,7 +221,7 @@ impl<V> Node<V> {
         self.values[index].take().map(|p| *p)
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn get_child(&self, nibble: u8) -> Option<NonNull<Node<V>>> {
         let mask = CHILD_MASKS[nibble as usize];
         let masked = self.child_bits() & mask;
@@ -219,7 +232,7 @@ impl<V> Node<V> {
         self.children[index as usize]
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn set_child(&mut self, nibble: u8, node: NonNull<Node<V>>) {
         debug_assert!(nibble < 16);
 
@@ -289,5 +302,51 @@ mod tests {
         let p = unsafe { root.as_mut() };
         p.set_child(0b0010, Node::end());
         assert!(p.get_child(0b0010).is_some());
+    }
+
+    #[test]
+    fn test_exact_value_mask() {
+        let tests = [
+            ((0b0000, 0), [0b1000_0000, 0, 0, 0]),
+            ((0b0000, 1), [0b0100_0000, 0, 0, 0]),
+            ((0b1000, 1), [0b0010_0000, 0, 0, 0]),
+            ((0b0000, 2), [0b0001_0000, 0, 0, 0]),
+            ((0b0100, 2), [0b0000_1000, 0, 0, 0]),
+        ];
+
+        for (input, expected) in tests.into_iter() {
+            let (nibble, bits) = input;
+            let mask = exact_value_mask(nibble, bits);
+            let actual = mask.to_be_bytes();
+            assert_eq!(
+                actual,
+                expected,
+                "input: ({nibble}, {bits}) = {mask:032b}, expected: {:032b}",
+                u32::from_be_bytes(expected),
+            );
+        }
+    }
+
+    #[test]
+    fn test_match_value_mask() {
+        let tests = [
+            ((0b0000, 0), [0b1000_0000, 0, 0, 0]),
+            ((0b0000, 1), [0b1100_0000, 0, 0, 0]),
+            ((0b1000, 1), [0b1010_0000, 0, 0, 0]),
+            ((0b0000, 2), [0b1101_0000, 0, 0, 0]),
+            ((0b0100, 2), [0b1101_1000, 0, 0, 0]),
+        ];
+
+        for (input, expected) in tests.into_iter() {
+            let (nibble, bits) = input;
+            let mask = match_value_mask(nibble, bits);
+            let actual = mask.to_be_bytes();
+            assert_eq!(
+                actual,
+                expected,
+                "input: ({nibble}, {bits}) = {mask:032b}, expected: {:032b}",
+                u32::from_be_bytes(expected),
+            );
+        }
     }
 }
