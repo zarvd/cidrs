@@ -1,93 +1,139 @@
+use core::fmt;
+use core::net::{Ipv4Addr, Ipv6Addr};
+
 use crate::{Ipv4Cidr, Ipv6Cidr};
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub(crate) struct Nibble {
-    pub value: u8,
-    pub len: u8,
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub struct Nibble {
+    pub byte: u8,
+    pub bits: u8,
 }
 
 impl Nibble {
     #[inline]
     pub const fn nil() -> Self {
-        Self { value: 0, len: 0 }
+        Self { byte: 0, bits: 0 }
+    }
+}
+
+impl fmt::Debug for Nibble {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Nibble({:0width$b} / {})",
+            self.byte,
+            self.bits,
+            width = self.bits as usize
+        )
+    }
+}
+
+impl From<(u8, u8)> for Nibble {
+    fn from(value: (u8, u8)) -> Self {
+        Self {
+            byte: value.0,
+            bits: value.1,
+        }
+    }
+}
+
+pub struct Nibbles<const N: usize> {
+    bytes: [u8; N],
+    cursor: u8,
+    bits: u8,
+}
+
+impl<const N: usize> Nibbles<N> {
+    #[inline]
+    #[allow(dead_code)]
+    const fn new(bytes: [u8; N], bits: u8) -> Self {
+        debug_assert!(bits <= N as u8 * 8, "bits is too long");
+        Self {
+            bytes,
+            cursor: 0,
+            bits,
+        }
     }
 
     #[inline]
-    pub const fn from_octet(octet: u8, len: u8) -> Self {
-        debug_assert!(octet < 16);
-        debug_assert!(len <= 4);
-
-        let shift = 4 - len;
-        let octet = octet >> shift << shift;
-
-        Self { value: octet, len }
+    #[allow(dead_code)]
+    pub const fn bits(&self) -> u8 {
+        self.bits
     }
 
-    pub fn from_octets(octets: &[u8], len: u8) -> Vec<Self> {
-        let mut nibbles = Vec::new();
+    #[inline]
+    #[allow(dead_code)]
+    pub const fn to_bytes(&self) -> [u8; N] {
+        self.bytes
+    }
+}
 
-        let mut shift = 0;
-        while shift < len {
-            let i = (shift / 8) as usize;
-            let octet = if shift % 8 == 0 {
-                octets[i] >> 4
-            } else {
-                octets[i] & 0xf
-            };
+impl<const N: usize> Iterator for Nibbles<N> {
+    type Item = Nibble;
 
-            let l = if len - shift >= 4 { 4 } else { len - shift };
-
-            nibbles.push(Self::from_octet(octet, l));
-
-            shift += 4;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cursor >= self.bits {
+            return None;
         }
 
-        nibbles
-    }
-}
-
-pub(crate) struct Nibbles(Vec<Nibble>);
-
-impl Nibbles {
-    #[inline]
-    pub fn into_vec(self) -> Vec<Nibble> {
-        self.0
-    }
-}
-
-impl From<Ipv4Cidr> for Nibbles {
-    fn from(cidr: Ipv4Cidr) -> Self {
-        let mut bytes = cidr.octets().into_iter();
-        let mut nibbles = {
-            let cap = cidr.bits() as usize / 4 + if cidr.bits() % 4 == 0 { 0 } else { 1 };
-            Vec::with_capacity(cap)
+        let i = (self.cursor / 8) as usize;
+        let byte = if self.cursor % 8 == 0 {
+            self.bytes[i] >> 4
+        } else {
+            self.bytes[i] & 0x0f
         };
-        let mut bits = cidr.bits();
-        debug_assert!(bits <= 32);
-        while bits > 0 {
-            let byte = bytes.next().unwrap();
-            let (lh, rh) = (byte >> 4, byte & 0b0000_1111);
-            nibbles.push(Nibble {
-                value: lh,
-                len: 4.min(bits),
-            });
-            if bits <= 4 {
-                break;
-            }
-            bits -= 4;
-            nibbles.push(Nibble {
-                value: rh,
-                len: 4.min(bits),
-            });
-            bits -= 4.min(bits);
-        }
-        Nibbles(nibbles)
+        let len = 4.min(self.bits - self.cursor);
+        let nibble = Nibble {
+            bits: len,
+            byte: byte >> (4 - len) << (4 - len),
+        };
+
+        self.cursor += len;
+        Some(nibble)
     }
 }
 
-impl From<Ipv6Cidr> for Nibbles {
+impl From<Ipv4Addr> for Nibbles<4> {
+    fn from(addr: Ipv4Addr) -> Self {
+        let bytes = addr.octets();
+        Self {
+            bytes,
+            cursor: 0,
+            bits: 32,
+        }
+    }
+}
+
+impl From<Ipv4Cidr> for Nibbles<4> {
+    fn from(cidr: Ipv4Cidr) -> Self {
+        let bytes = cidr.octets();
+        Self {
+            bytes,
+            cursor: 0,
+            bits: cidr.bits(),
+        }
+    }
+}
+
+impl From<Ipv6Addr> for Nibbles<16> {
+    fn from(addr: Ipv6Addr) -> Self {
+        let bytes = addr.octets();
+        Self {
+            bytes,
+            cursor: 0,
+            bits: 128,
+        }
+    }
+}
+
+impl From<Ipv6Cidr> for Nibbles<16> {
     fn from(cidr: Ipv6Cidr) -> Self {
-        Nibbles(Nibble::from_octets(&cidr.octets(), cidr.bits()))
+        let bytes = cidr.octets();
+        Self {
+            bytes,
+            cursor: 0,
+            bits: cidr.bits(),
+        }
     }
 }
 
@@ -97,182 +143,111 @@ mod tests {
 
     #[test]
     #[allow(clippy::too_many_lines)]
-    fn test_from_octets() {
+    fn test_nibbles_iteration() {
         let tests = [
-            ((vec![0b1111_1111], 0), vec![]),
+            (([0b1111_1111, 0, 0, 0], 0), vec![]),
+            (([0b1111_1111, 0, 0, 0], 1), vec![(0b1000, 1)]),
+            (([0b1111_1111, 0, 0, 0], 2), vec![(0b1100, 2)]),
+            (([0b1100_1010, 0, 0, 0], 8), vec![(0b1100, 4), (0b1010, 4)]),
+            (([0b1100_1010, 0, 0, 0], 6), vec![(0b1100, 4), (0b1000, 2)]),
+            (([0b1100_1010, 0, 0, 0], 5), vec![(0b1100, 4), (0b1000, 1)]),
+            (([0b1100_1010, 0, 0, 0], 4), vec![(0b1100, 4)]),
+            (([0b1111_1010, 0, 0, 0], 3), vec![(0b1110, 3)]),
             (
-                (vec![0b1111_1111], 1),
-                vec![Nibble {
-                    value: 0b1000,
-                    len: 1,
-                }],
+                ([0b1111_1010, 0b1111_1111, 0, 0], 11),
+                vec![(0b1111, 4), (0b1010, 4), (0b1110, 3)],
             ),
             (
-                (vec![0b1111_1111], 2),
-                vec![Nibble {
-                    value: 0b1100,
-                    len: 2,
-                }],
+                ([0b1010_0101, 0b1110_0111, 0, 0], 11),
+                vec![(0b1010, 4), (0b0101, 4), (0b1110, 3)],
             ),
             (
-                (vec![0b1100_1010], 8),
-                vec![
-                    Nibble {
-                        value: 0b1100,
-                        len: 4,
-                    },
-                    Nibble {
-                        value: 0b1010,
-                        len: 4,
-                    },
-                ],
-            ),
-            (
-                (vec![0b1100_1010], 6),
-                vec![
-                    Nibble {
-                        value: 0b1100,
-                        len: 4,
-                    },
-                    Nibble {
-                        value: 0b1000,
-                        len: 2,
-                    },
-                ],
-            ),
-            (
-                (vec![0b1100_1010], 5),
-                vec![
-                    Nibble {
-                        value: 0b1100,
-                        len: 4,
-                    },
-                    Nibble {
-                        value: 0b1000,
-                        len: 1,
-                    },
-                ],
-            ),
-            (
-                (vec![0b1100_1010], 4),
-                vec![Nibble {
-                    value: 0b1100,
-                    len: 4,
-                }],
-            ),
-            (
-                (vec![0b1111_1010], 3),
-                vec![Nibble {
-                    value: 0b1110,
-                    len: 3,
-                }],
-            ),
-            (
-                (vec![0b1111_1010, 0b1111_1111], 11),
-                vec![
-                    Nibble {
-                        value: 0b1111,
-                        len: 4,
-                    },
-                    Nibble {
-                        value: 0b1010,
-                        len: 4,
-                    },
-                    Nibble {
-                        value: 0b1110,
-                        len: 3,
-                    },
-                ],
+                ([0b1010_0101, 0b1110_0111, 0, 0], 15),
+                vec![(0b1010, 4), (0b0101, 4), (0b1110, 4), (0b0110, 3)],
             ),
         ];
 
         for (input, expected) in tests {
-            let actual = Nibble::from_octets(&input.0, input.1);
+            let (bytes, bits) = input;
+            let nibbles = Nibbles::new(bytes, bits);
+
+            let actual: Vec<Nibble> = nibbles.collect();
+            let expected: Vec<Nibble> = expected
+                .into_iter()
+                .map(|(byte, bits)| Nibble { byte, bits })
+                .collect();
             assert_eq!(
-                actual,
-                expected,
-                "input: ({}, {})",
-                input
-                    .0
-                    .into_iter()
-                    .map(|v| format!("{:10b}", v))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                input.1
+                actual, expected,
+                "input: {input:?} = {actual:?}, expected: {expected:?}"
             );
         }
     }
 
     #[test]
-    fn test_ipv4_cidr_key_to_nibbles() {
+    fn test_ipv4_cidr_to_nibbles() {
         let tests = [
             ("0.0.0.0/0", vec![]),
             (
                 "192.168.0.1/32",
                 vec![
-                    Nibble { value: 12, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 8, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 1, len: 4 },
+                    (0b1100, 4),
+                    (0b0000, 4),
+                    (0b1010, 4),
+                    (0b1000, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0001, 4),
                 ],
             ),
             (
                 "192.168.0.0/16",
-                vec![
-                    Nibble { value: 12, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 8, len: 4 },
-                ],
+                vec![(0b1100, 4), (0b0000, 4), (0b1010, 4), (0b1000, 4)],
             ),
             (
                 "192.168.223.0/24",
                 vec![
-                    Nibble { value: 12, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 8, len: 4 },
-                    Nibble { value: 13, len: 4 },
-                    Nibble { value: 15, len: 4 },
+                    (0b1100, 4),
+                    (0b0000, 4),
+                    (0b1010, 4),
+                    (0b1000, 4),
+                    (0b1101, 4),
+                    (0b1111, 4),
                 ],
             ),
             (
                 "192.168.223.0/25",
                 vec![
-                    Nibble { value: 12, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 8, len: 4 },
-                    Nibble { value: 13, len: 4 },
-                    Nibble { value: 15, len: 4 },
-                    Nibble { value: 0, len: 1 },
+                    (0b1100, 4),
+                    (0b0000, 4),
+                    (0b1010, 4),
+                    (0b1000, 4),
+                    (0b1101, 4),
+                    (0b1111, 4),
+                    (0b0000, 1),
                 ],
             ),
             (
                 "192.168.223.0/18",
                 vec![
-                    Nibble { value: 12, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 8, len: 4 },
-                    Nibble { value: 12, len: 2 },
+                    (0b1100, 4),
+                    (0b0000, 4),
+                    (0b1010, 4),
+                    (0b1000, 4),
+                    (0b1100, 2),
                 ],
             ),
             (
                 "10.0.0.1/32",
                 vec![
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 10, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 0, len: 4 },
-                    Nibble { value: 1, len: 4 },
+                    (0b0000, 4),
+                    (0b1010, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0001, 4),
                 ],
             ),
         ];
@@ -280,7 +255,50 @@ mod tests {
         for (s, expected) in tests {
             let cidr = s.parse::<Ipv4Cidr>().unwrap();
             let actual = Nibbles::from(cidr);
-            assert_eq!(actual.0, expected, "cidr: {}", cidr);
+            let actual: Vec<Nibble> = actual.collect();
+            let expected: Vec<Nibble> = expected
+                .into_iter()
+                .map(|(byte, bits)| Nibble { byte, bits })
+                .collect();
+
+            assert_eq!(
+                actual, expected,
+                "input: {s} = {actual:?}, expected: {expected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_ipv6_cidr_to_nibbles() {
+        let tests = [
+            ("::/0", vec![]),
+            (
+                "2001:db8::/32",
+                vec![
+                    (0b0010, 4),
+                    (0b0000, 4),
+                    (0b0000, 4),
+                    (0b0001, 4),
+                    (0b0000, 4),
+                    (0b1101, 4),
+                    (0b1011, 4),
+                    (0b1000, 4),
+                ],
+            ),
+        ];
+        for (s, expected) in tests {
+            let cidr = s.parse::<Ipv6Cidr>().unwrap();
+            let actual = Nibbles::from(cidr);
+            let actual: Vec<Nibble> = actual.collect();
+            let expected: Vec<Nibble> = expected
+                .into_iter()
+                .map(|(byte, bits)| Nibble { byte, bits })
+                .collect();
+
+            assert_eq!(
+                actual, expected,
+                "input: {s} = {actual:?}, expected: {expected:?}"
+            );
         }
     }
 }

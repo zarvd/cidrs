@@ -6,14 +6,17 @@ use super::{Nibble, Nibbles};
 /// A tree bitmap implementation.
 ///
 /// This is a tree bitmap implementation that is used to store and query CIDR ranges.
-pub(crate) struct TreeBitmap<K, V> {
+pub(crate) struct TreeBitmap<const N: usize, K, V>
+where
+    K: Copy + Into<Nibbles<N>>,
+{
     root: NonNull<Node<(K, V)>>,
     depth: usize,
 }
 
-impl<K, V> TreeBitmap<K, V>
+impl<const N: usize, K, V> TreeBitmap<N, K, V>
 where
-    K: Copy + Into<Nibbles>,
+    K: Copy + Into<Nibbles<N>>,
 {
     /// Creates a new tree bitmap.
     ///
@@ -28,22 +31,24 @@ where
         }
     }
 
-    pub fn list_matched(&self, nibbles: &[Nibble]) -> Vec<(K, &V)> {
-        debug_assert!(nibbles.len() <= self.depth, "key is too long");
+    pub fn list_matched<I>(&self, key: I) -> Vec<(K, &V)>
+    where
+        I: Into<Nibbles<N>>,
+    {
         let mut node = self.root;
         let mut depth = 0;
         let mut rv = Vec::new();
         let mut is_end = false;
-        for nibble in nibbles {
+        for nibble in key.into() {
             depth += 1;
             let p = unsafe { node.as_ref() };
-            rv.extend(p.list_values(*nibble));
+            rv.extend(p.list_values(nibble));
             debug_assert!((depth == self.depth) == p.is_end());
-            if nibble.len < 4 || self.depth == depth {
+            if nibble.bits < 4 || self.depth == depth {
                 is_end = true;
                 break;
             }
-            node = if let Some(next) = p.get_child(nibble.value) {
+            node = if let Some(next) = p.get_child(nibble.byte) {
                 next
             } else {
                 is_end = true;
@@ -59,44 +64,46 @@ where
         rv.into_iter().map(|(k, v)| (*k, v)).collect()
     }
 
-    pub fn match_exact(&self, key: K) -> Option<&V> {
-        let nibbles = key.into().into_vec();
-        debug_assert!(nibbles.len() <= self.depth, "key is too long");
-
+    pub fn match_exact<I>(&self, key: I) -> Option<&V>
+    where
+        I: Into<Nibbles<N>>,
+    {
         let mut node = self.root;
         let mut depth = 0;
-        for nibble in nibbles {
+        for nibble in key.into() {
             depth += 1;
             let p = unsafe { node.as_ref() };
 
             debug_assert!((depth == self.depth) == p.is_end());
-            if nibble.len < 4 || depth == self.depth {
+            if nibble.bits < 4 || depth == self.depth {
                 return p.get_exact_match_value(nibble).map(|(_, v)| v);
             }
-            node = p.get_child(nibble.value)?;
+            node = p.get_child(nibble.byte)?;
         }
         let p = unsafe { node.as_ref() };
 
         p.get_exact_match_value(Nibble::nil()).map(|(_, v)| v)
     }
 
-    pub fn match_longest(&self, nibbles: &[Nibble]) -> Option<(K, &V)> {
-        debug_assert!(nibbles.len() <= self.depth, "key is too long");
+    pub fn match_longest<I>(&self, key: I) -> Option<(K, &V)>
+    where
+        I: Into<Nibbles<N>>,
+    {
         let mut node = self.root;
         let mut depth = 0;
         let mut rv = None;
-        for nibble in nibbles {
+        for nibble in key.into() {
             depth += 1;
             let p = unsafe { node.as_ref() };
 
-            if let Some((k, v)) = p.get_longest_match_value(*nibble) {
+            if let Some((k, v)) = p.get_longest_match_value(nibble) {
                 rv = Some((k, v));
             }
 
-            if nibble.len < 4 || depth == self.depth {
+            if nibble.bits < 4 || depth == self.depth {
                 break;
             }
-            node = if let Some(next) = p.get_child(nibble.value) {
+            node = if let Some(next) = p.get_child(nibble.byte) {
                 next
             } else {
                 break;
@@ -109,24 +116,21 @@ where
         rv.into_iter().map(|(k, v)| (*k, v)).next()
     }
 
-    pub fn insert(&mut self, range: K, value: V) -> Option<V> {
-        let nibbles = range.into().into_vec();
-        debug_assert!(nibbles.len() <= self.depth, "key is too long");
-
+    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         let mut node = self.root;
         let mut depth = 0;
-        for nibble in nibbles {
+        for nibble in key.into() {
             depth += 1;
 
             let p = unsafe { node.as_mut() };
 
-            if nibble.len < 4 || depth == self.depth {
+            if nibble.bits < 4 || depth == self.depth {
                 let rv = p.remove_value(nibble).map(|(_, v)| v);
-                p.set_value(nibble, (range, value));
+                p.set_value(nibble, (key, value));
                 return rv;
             }
 
-            if let Some(next) = p.get_child(nibble.value) {
+            if let Some(next) = p.get_child(nibble.byte) {
                 node = next;
                 continue;
             }
@@ -137,26 +141,23 @@ where
                 Node::internal()
             };
             node = next;
-            p.set_child(nibble.value, next);
+            p.set_child(nibble.byte, next);
         }
 
         let p = unsafe { node.as_mut() };
         let rv = p.remove_value(Nibble::nil()).map(|(_, v)| v);
-        p.set_value(Nibble::nil(), (range, value));
+        p.set_value(Nibble::nil(), (key, value));
         rv
     }
 
-    pub fn remove(&mut self, range: K) -> Option<V> {
-        let nibbles = range.into().into_vec();
-        debug_assert!(nibbles.len() <= self.depth, "key is too long");
-
+    pub fn remove(&mut self, key: K) -> Option<V> {
         let mut node = self.root;
         let mut depth = 0;
-        for nibble in nibbles {
+        for nibble in key.into() {
             depth += 1;
             let p = unsafe { node.as_mut() };
-            if nibble.len == 4 && depth < self.depth {
-                if let Some(next) = p.get_child(nibble.value) {
+            if nibble.bits == 4 && depth < self.depth {
+                if let Some(next) = p.get_child(nibble.byte) {
                     node = next;
                 } else {
                     return None;
@@ -242,9 +243,9 @@ mod tests {
         ];
 
         for (key, expected) in tests {
-            let k = Nibble::from_octets(&Ipv4Addr::from(key).octets(), 32);
+            let k = Ipv4Addr::from(key);
             let actual = map
-                .list_matched(&k)
+                .list_matched(k)
                 .into_iter()
                 .map(|(k, v)| (k, v.clone()))
                 .collect::<Vec<_>>();
