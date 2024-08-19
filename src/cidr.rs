@@ -106,7 +106,7 @@ impl Ipv4Cidr {
     /// use cidrs::Ipv4Cidr;
     ///
     /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
-    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0));  // truncated
+    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0)); // truncated
     /// ```
     #[inline]
     pub const fn addr(&self) -> Ipv4Addr {
@@ -629,10 +629,28 @@ impl PartialEq<Ipv4Cidr> for Cidr {
     }
 }
 
+impl PartialEq<Cidr> for Ipv4Cidr {
+    fn eq(&self, other: &Cidr) -> bool {
+        match other {
+            Cidr::V4(v4) => self == v4,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq<Ipv6Cidr> for Cidr {
     fn eq(&self, other: &Ipv6Cidr) -> bool {
         match self {
             Cidr::V6(v6) => v6 == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Cidr> for Ipv6Cidr {
+    fn eq(&self, other: &Cidr) -> bool {
+        match other {
+            Cidr::V6(v6) => self == v6,
             _ => false,
         }
     }

@@ -22,3 +22,7 @@ unit-test:
 # Run benchmarks
 bench:
     cargo bench --all-features
+
+# Show documentation
+doc:
+    cargo doc --all-features --open --no-deps
