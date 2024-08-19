@@ -629,10 +629,28 @@ impl PartialEq<Ipv4Cidr> for Cidr {
     }
 }
 
+impl PartialEq<Cidr> for Ipv4Cidr {
+    fn eq(&self, other: &Cidr) -> bool {
+        match other {
+            Cidr::V4(v4) => self == v4,
+            _ => false,
+        }
+    }
+}
+
 impl PartialEq<Ipv6Cidr> for Cidr {
     fn eq(&self, other: &Ipv6Cidr) -> bool {
         match self {
             Cidr::V6(v6) => v6 == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<Cidr> for Ipv6Cidr {
+    fn eq(&self, other: &Cidr) -> bool {
+        match other {
+            Cidr::V6(v6) => self == v6,
             _ => false,
         }
     }

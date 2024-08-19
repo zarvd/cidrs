@@ -25,7 +25,10 @@ name = "routing_table"
 harness = false
 required-features = ["routing-table"]
 
-
 [[example]]
+name = "routing_table"
+required-features = ["routing-table"]
+
+[[test]]
 name = "routing_table"
 required-features = ["routing-table"]

@@ -76,20 +76,20 @@ impl<const N: usize> Iterator for Nibbles<N> {
             return None;
         }
 
-        let i = (self.cursor / 8) as usize;
-        let byte = if self.cursor % 8 == 0 {
-            self.bytes[i] >> 4
-        } else {
-            self.bytes[i] & 0x0f
+        let bits = 4.min(self.bits - self.cursor);
+        let byte = {
+            let i = (self.cursor / 8) as usize;
+            let b = self.bytes[i];
+            let b = if self.cursor % 8 == 0 {
+                b >> 4
+            } else {
+                b & 0x0f
+            };
+            b >> (4 - bits) << (4 - bits)
         };
-        let len = 4.min(self.bits - self.cursor);
-        let nibble = Nibble {
-            bits: len,
-            byte: byte >> (4 - len) << (4 - len),
-        };
+        self.cursor += bits;
 
-        self.cursor += len;
-        Some(nibble)
+        Some(Nibble { bits, byte })
     }
 }
 
