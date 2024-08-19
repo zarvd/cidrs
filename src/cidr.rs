@@ -1,4 +1,4 @@
-use core::fmt::{Debug, Display, Formatter};
+use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use core::str::FromStr;
@@ -76,7 +76,7 @@ impl Ipv4Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv4Addr;
+    /// use core::net::Ipv4Addr;
     ///
     /// use cidrs::Ipv4Cidr;
     ///
@@ -101,7 +101,7 @@ impl Ipv4Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv4Addr;
+    /// use core::net::Ipv4Addr;
     ///
     /// use cidrs::Ipv4Cidr;
     ///
@@ -164,7 +164,7 @@ impl Ipv4Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv4Addr;
+    /// use core::net::Ipv4Addr;
     ///
     /// use cidrs::Ipv4Cidr;
     ///
@@ -213,14 +213,14 @@ impl Ipv4Cidr {
     }
 }
 
-impl Display for Ipv4Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Ipv4Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", Ipv4Addr::from(self.octets), self.bits)
     }
 }
 
-impl Debug for Ipv4Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Ipv4Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Ipv4Cidr({})", self)
     }
 }
@@ -246,7 +246,7 @@ impl From<Ipv4Addr> for Ipv4Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv4Addr;
+    /// use core::net::Ipv4Addr;
     ///
     /// use cidrs::Ipv4Cidr;
     ///
@@ -367,7 +367,7 @@ impl Ipv6Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv6Addr;
+    /// use core::net::Ipv6Addr;
     ///
     /// use cidrs::Ipv6Cidr;
     ///
@@ -434,14 +434,14 @@ impl Ipv6Cidr {
     }
 }
 
-impl Display for Ipv6Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Ipv6Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}/{}", Ipv6Addr::from(self.octets), self.bits)
     }
 }
 
-impl Debug for Ipv6Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Ipv6Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Ipv6Cidr({})", self)
     }
 }
@@ -467,7 +467,7 @@ impl From<Ipv6Addr> for Ipv6Cidr {
     /// # Examples
     ///
     /// ```
-    /// use std::net::Ipv6Addr;
+    /// use core::net::Ipv6Addr;
     ///
     /// use cidrs::Ipv6Cidr;
     ///
@@ -482,7 +482,7 @@ impl From<Ipv6Addr> for Ipv6Cidr {
 impl TryFrom<([u8; 16], u8)> for Ipv6Cidr {
     type Error = Error;
 
-    fn try_from((octets, bits): ([u8; 16], u8)) -> std::result::Result<Self, Self::Error> {
+    fn try_from((octets, bits): ([u8; 16], u8)) -> core::result::Result<Self, Self::Error> {
         Self::from_ip(octets, bits)
     }
 }
@@ -577,17 +577,17 @@ impl Cidr {
     }
 }
 
-impl Display for Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Cidr::V4(v4) => Display::fmt(&v4, f),
-            Cidr::V6(v6) => Display::fmt(&v6, f),
+            Cidr::V4(v4) => fmt::Display::fmt(&v4, f),
+            Cidr::V6(v6) => fmt::Display::fmt(&v6, f),
         }
     }
 }
 
-impl Debug for Cidr {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Cidr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Cidr({})", self)
     }
 }
@@ -595,7 +595,7 @@ impl Debug for Cidr {
 impl TryFrom<([u8; 4], u8)> for Cidr {
     type Error = Error;
 
-    fn try_from((octets, bits): ([u8; 4], u8)) -> std::result::Result<Self, Self::Error> {
+    fn try_from((octets, bits): ([u8; 4], u8)) -> core::result::Result<Self, Self::Error> {
         Ok(Cidr::V4(Ipv4Cidr::try_from((octets, bits))?))
     }
 }
@@ -603,7 +603,7 @@ impl TryFrom<([u8; 4], u8)> for Cidr {
 impl TryFrom<([u8; 16], u8)> for Cidr {
     type Error = Error;
 
-    fn try_from((octets, bits): ([u8; 16], u8)) -> std::result::Result<Self, Self::Error> {
+    fn try_from((octets, bits): ([u8; 16], u8)) -> core::result::Result<Self, Self::Error> {
         Ok(Cidr::V6(Ipv6Cidr::try_from((octets, bits))?))
     }
 }

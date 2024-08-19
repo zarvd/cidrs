@@ -4,11 +4,11 @@ pub use crate::cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
 
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use tree_bitmap::{Nibble, TreeBitmap};
+use tree_bitmap::TreeBitmap;
 
 /// A routing table for IPv4 CIDRs.
 pub struct Ipv4CidrRoutingTable<V> {
-    bitmap: TreeBitmap<Ipv4Cidr, V>,
+    bitmap: TreeBitmap<4, Ipv4Cidr, V>,
 }
 
 impl<V> Ipv4CidrRoutingTable<V> {
@@ -103,8 +103,7 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn match_longest(&self, addr: Ipv4Addr) -> Option<(Ipv4Cidr, &V)> {
-        let nibbles = Nibble::from_octets(&addr.octets(), Ipv4Cidr::MAX_BITS);
-        self.bitmap.match_longest(&nibbles)
+        self.bitmap.match_longest(addr)
     }
 
     /// List all matched IPv4 CIDRs and their values.
@@ -144,8 +143,7 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn list_matched(&self, addr: Ipv4Addr) -> Vec<(Ipv4Cidr, &V)> {
-        let nibbles = Nibble::from_octets(&addr.octets(), Ipv4Cidr::MAX_BITS);
-        self.bitmap.list_matched(&nibbles)
+        self.bitmap.list_matched(addr)
     }
 }
 
@@ -157,7 +155,7 @@ impl<V> Default for Ipv4CidrRoutingTable<V> {
 
 /// A routing table for IPv6 CIDRs.
 pub struct Ipv6CidrRoutingTable<V> {
-    bitmap: TreeBitmap<Ipv6Cidr, V>,
+    bitmap: TreeBitmap<16, Ipv6Cidr, V>,
 }
 
 impl<V> Ipv6CidrRoutingTable<V> {
@@ -252,8 +250,7 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn match_longest(&self, addr: Ipv6Addr) -> Option<(Ipv6Cidr, &V)> {
-        let nibbles = Nibble::from_octets(&addr.octets(), Ipv6Cidr::MAX_BITS);
-        self.bitmap.match_longest(&nibbles)
+        self.bitmap.match_longest(addr)
     }
 
     /// List all matched IPv6 CIDRs and their values.
@@ -292,8 +289,7 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// );
     #[inline]
     pub fn list_matched(&self, addr: Ipv6Addr) -> Vec<(Ipv6Cidr, &V)> {
-        let nibbles = Nibble::from_octets(&addr.octets(), Ipv6Cidr::MAX_BITS);
-        self.bitmap.list_matched(&nibbles)
+        self.bitmap.list_matched(addr)
     }
 }
 

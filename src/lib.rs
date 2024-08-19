@@ -10,7 +10,8 @@
     clippy::str_to_string,
     clippy::inefficient_to_string,
     clippy::too_many_lines,
-    clippy::or_fun_call
+    clippy::or_fun_call,
+    clippy::std_instead_of_core
 )]
 
 mod cidr;

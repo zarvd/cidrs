@@ -1,4 +1,4 @@
-use core::fmt::{Display, Formatter};
+use core::fmt;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum CidrParseKind {
@@ -7,8 +7,8 @@ pub enum CidrParseKind {
     Ipv6,
 }
 
-impl Display for CidrParseKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for CidrParseKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CidrParseKind::Ip => write!(f, "IP"),
             CidrParseKind::Ipv4 => write!(f, "IPv4"),

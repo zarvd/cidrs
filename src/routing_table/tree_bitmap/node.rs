@@ -1,8 +1,9 @@
-use core::fmt::Debug;
+use core::fmt;
 use core::ptr::NonNull;
 
 use super::Nibble;
 
+#[inline]
 const fn mask_bit(n: usize) -> u32 {
     debug_assert!(n < 32);
     1 << (31 - n)
@@ -81,7 +82,8 @@ const VALUE_MASKS: [[u32; 16]; 5] = [
     MASKS,
 ];
 
-const fn exact_value_mask(nibble: u8, bits: u32) -> u32 {
+#[inline]
+const fn exact_value_mask(nibble: u8, bits: u8) -> u32 {
     debug_assert!(nibble < 16);
     debug_assert!(bits < 5);
     let offset = ((nibble << bits) & 0b1111_0000) >> bits;
@@ -89,7 +91,8 @@ const fn exact_value_mask(nibble: u8, bits: u32) -> u32 {
     1u32 << v.trailing_zeros()
 }
 
-const fn match_value_mask(nibble: u8, bits: u32) -> u32 {
+#[inline]
+const fn match_value_mask(nibble: u8, bits: u8) -> u32 {
     debug_assert!(nibble < 16);
     debug_assert!(bits < 5);
     let offset = ((nibble << bits) & 0b1111_0000) >> bits;
@@ -97,7 +100,6 @@ const fn match_value_mask(nibble: u8, bits: u32) -> u32 {
 }
 
 pub(super) struct Node<V> {
-    id: u64,
     bitmap: u32,
     values: [Option<Box<V>>; 32],
     children: [Option<NonNull<Node<V>>>; 16],
@@ -108,10 +110,7 @@ impl<V> Node<V> {
 
     #[inline]
     fn empty() -> Self {
-        use std::sync::atomic::AtomicU64;
-        static ID: AtomicU64 = AtomicU64::new(1);
         Self {
-            id: ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             bitmap: 0,
             values: [
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
@@ -165,7 +164,7 @@ impl<V> Node<V> {
 
     #[inline]
     pub fn list_values(&self, nibble: Nibble) -> Vec<&V> {
-        let mask = match_value_mask(nibble.value, nibble.len as u32);
+        let mask = match_value_mask(nibble.byte, nibble.bits);
         let masked = self.value_bits() & mask;
         (0..32u32)
             .filter(|i| masked & (1 << (31 - i)) != 0)
@@ -176,7 +175,7 @@ impl<V> Node<V> {
 
     #[inline]
     pub fn get_longest_match_value(&self, nibble: Nibble) -> Option<&V> {
-        let mask = match_value_mask(nibble.value, nibble.len as _);
+        let mask = match_value_mask(nibble.byte, nibble.bits);
         let offset = (self.value_bits() & mask).trailing_zeros() as usize;
         if offset == 32 {
             return None;
@@ -188,7 +187,7 @@ impl<V> Node<V> {
 
     #[inline]
     pub fn get_exact_match_value(&self, nibble: Nibble) -> Option<&V> {
-        let mask = exact_value_mask(nibble.value, nibble.len as _);
+        let mask = exact_value_mask(nibble.byte, nibble.bits);
         let offset = (self.value_bits() & mask).trailing_zeros() as usize;
         if offset == 32 {
             return None;
@@ -200,7 +199,7 @@ impl<V> Node<V> {
 
     #[inline]
     pub fn set_value(&mut self, nibble: Nibble, value: V) {
-        let mask = exact_value_mask(nibble.value, nibble.len as _);
+        let mask = exact_value_mask(nibble.byte, nibble.bits);
         let offset = mask.trailing_zeros() as usize;
         debug_assert!(offset < 32, "offset = {}", offset);
         let index = 31 - offset;
@@ -212,7 +211,7 @@ impl<V> Node<V> {
 
     #[inline]
     pub fn remove_value(&mut self, nibble: Nibble) -> Option<V> {
-        let mask = exact_value_mask(nibble.value, nibble.len as _);
+        let mask = exact_value_mask(nibble.byte, nibble.bits);
         let offset = (self.value_bits() & mask).trailing_zeros() as usize;
         if offset == 32 {
             return None;
@@ -245,11 +244,10 @@ impl<V> Node<V> {
     }
 }
 
-impl<V> Debug for Node<V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<V> fmt::Debug for Node<V> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Node");
         debug
-            .field("id", &self.id)
             .field("is_end", &self.is_end())
             .field("values", &format_args!("{:032b}", self.value_bits()));
         if !self.is_end() {
@@ -268,27 +266,23 @@ mod tests {
     fn test_mask() {
         pub const MSB: u32 = 1 << 31;
 
-        #[rustfmt::skip]
         pub static MATCH_MASKS: [u32; 16] = [
             MSB | MSB >> 1 | MSB >> 3 | MSB >> 7 | MSB >> 16, // 0000
             MSB | MSB >> 1 | MSB >> 3 | MSB >> 7 | MSB >> 17, // 0001
             MSB | MSB >> 1 | MSB >> 3 | MSB >> 8 | MSB >> 18, // 0010
             MSB | MSB >> 1 | MSB >> 3 | MSB >> 8 | MSB >> 19, // 0011
-
             MSB | MSB >> 1 | MSB >> 4 | MSB >> 9 | MSB >> 20, // 0100
             MSB | MSB >> 1 | MSB >> 4 | MSB >> 9 | MSB >> 21, // 0101
             MSB | MSB >> 1 | MSB >> 4 | MSB >> 10 | MSB >> 22, // 0110
             MSB | MSB >> 1 | MSB >> 4 | MSB >> 10 | MSB >> 23, // 0111
-
             MSB | MSB >> 2 | MSB >> 5 | MSB >> 11 | MSB >> 24, // 1000
             MSB | MSB >> 2 | MSB >> 5 | MSB >> 11 | MSB >> 25, // 1001
             MSB | MSB >> 2 | MSB >> 5 | MSB >> 12 | MSB >> 26, // 1010
             MSB | MSB >> 2 | MSB >> 5 | MSB >> 12 | MSB >> 27, // 1011
-
             MSB | MSB >> 2 | MSB >> 6 | MSB >> 13 | MSB >> 28, // 1100
             MSB | MSB >> 2 | MSB >> 6 | MSB >> 13 | MSB >> 29, // 1101
             MSB | MSB >> 2 | MSB >> 6 | MSB >> 14 | MSB >> 30, // 1110
-            MSB | MSB >> 2 | MSB >> 6 | MSB >> 14 | MSB >> 31  /* 1111 */
+            MSB | MSB >> 2 | MSB >> 6 | MSB >> 14 | MSB >> 31, /* 1111 */
         ];
 
         for i in 0..16 {
