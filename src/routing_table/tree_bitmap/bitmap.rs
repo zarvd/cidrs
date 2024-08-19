@@ -171,6 +171,17 @@ where
     }
 }
 
+impl<const N: usize, K, V> Drop for TreeBitmap<N, K, V>
+where
+    K: Copy + Into<Nibbles<N>>,
+{
+    fn drop(&mut self) {
+        unsafe {
+            let _ = Box::from_raw(self.root.as_ptr());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::net::Ipv4Addr;

@@ -244,6 +244,18 @@ impl<V> Node<V> {
     }
 }
 
+impl<V> Drop for Node<V> {
+    fn drop(&mut self) {
+        for child in self.children.iter_mut() {
+            if let Some(child) = child.take() {
+                unsafe {
+                    let _ = Box::from_raw(child.as_ptr());
+                }
+            }
+        }
+    }
+}
+
 impl<V> fmt::Debug for Node<V> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("Node");
