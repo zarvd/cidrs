@@ -3,7 +3,7 @@ use super::{Nibble, TreeBitmap};
 use crate::Ipv4Cidr;
 
 mod dropped {
-    use std::cell::RefCell;
+    use core::cell::RefCell;
     use std::rc::Rc;
 
     /// A helper struct to check if the value is dropped.
