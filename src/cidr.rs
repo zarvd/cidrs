@@ -106,7 +106,7 @@ impl Ipv4Cidr {
     /// use cidrs::Ipv4Cidr;
     ///
     /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
-    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0));  // truncated
+    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0)); // truncated
     /// ```
     #[inline]
     pub const fn addr(&self) -> Ipv4Addr {

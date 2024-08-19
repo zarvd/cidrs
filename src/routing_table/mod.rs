@@ -39,8 +39,14 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// use cidrs::{Ipv4Cidr, Ipv4CidrRoutingTable};
     ///
     /// let mut table = Ipv4CidrRoutingTable::<u64>::new();
-    /// assert_eq!(table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42), None);
-    /// assert_eq!(table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42), Some(42));
+    /// assert_eq!(
+    ///     table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42),
+    ///     Some(42)
+    /// );
     /// ```
     #[inline]
     pub fn insert(&mut self, cidr: Ipv4Cidr, value: V) -> Option<V> {
@@ -56,8 +62,14 @@ impl<V> Ipv4CidrRoutingTable<V> {
     ///
     /// let mut table = Ipv4CidrRoutingTable::<u64>::new();
     /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
-    /// assert_eq!(table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), Some(42));
-    /// assert_eq!(table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), None);
+    /// assert_eq!(
+    ///     table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     Some(42)
+    /// );
+    /// assert_eq!(
+    ///     table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn remove(&mut self, cidr: Ipv4Cidr) -> Option<V> {
@@ -73,9 +85,18 @@ impl<V> Ipv4CidrRoutingTable<V> {
     ///
     /// let mut table = Ipv4CidrRoutingTable::<u64>::new();
     /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
-    /// assert_eq!(table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), Some(&42));
-    /// assert_eq!(table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 23).unwrap()), None);
-    /// assert_eq!(table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 25).unwrap()), None);
+    /// assert_eq!(
+    ///     table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     Some(&42)
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 23).unwrap()),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 25).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn match_exact(&self, cidr: Ipv4Cidr) -> Option<&V> {
@@ -97,9 +118,18 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// table.insert(Ipv4Cidr::new([192, 168, 2, 0], 24).unwrap(), 3);
     ///
     /// assert_eq!(table.match_longest([192, 0, 0, 0]), None);
-    /// assert_eq!(table.match_longest([192, 168, 1, 1]), Some((Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap(), &2)));
-    /// assert_eq!(table.match_longest([192, 168, 2, 1]), Some((Ipv4Cidr::new([192, 168, 2, 0], 24).unwrap(), &3)));
-    /// assert_eq!(table.match_longest([192, 168, 3, 1]), Some((Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap(), &1)));
+    /// assert_eq!(
+    ///     table.match_longest([192, 168, 1, 1]),
+    ///     Some((Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap(), &2))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([192, 168, 2, 1]),
+    ///     Some((Ipv4Cidr::new([192, 168, 2, 0], 24).unwrap(), &3))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([192, 168, 3, 1]),
+    ///     Some((Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap(), &1))
+    /// );
     /// ```
     #[inline]
     pub fn match_longest<I>(&self, addr: I) -> Option<(Ipv4Cidr, &V)>
@@ -192,8 +222,14 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// use cidrs::{Ipv6Cidr, Ipv6CidrRoutingTable};
     ///
     /// let mut table = Ipv6CidrRoutingTable::<u64>::new();
-    /// assert_eq!(table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42), None);
-    /// assert_eq!(table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42), Some(42));
+    /// assert_eq!(
+    ///     table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42),
+    ///     Some(42)
+    /// );
     /// ```
     #[inline]
     pub fn insert(&mut self, cidr: Ipv6Cidr, value: V) -> Option<V> {
@@ -209,8 +245,14 @@ impl<V> Ipv6CidrRoutingTable<V> {
     ///
     /// let mut table = Ipv6CidrRoutingTable::<u64>::new();
     /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
-    /// assert_eq!(table.remove(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), Some(42));
-    /// assert_eq!(table.remove(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), None);
+    /// assert_eq!(
+    ///     table.remove(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///     Some(42)
+    /// );
+    /// assert_eq!(
+    ///     table.remove(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn remove(&mut self, cidr: Ipv6Cidr) -> Option<V> {
@@ -226,9 +268,18 @@ impl<V> Ipv6CidrRoutingTable<V> {
     ///
     /// let mut table = Ipv6CidrRoutingTable::<u64>::new();
     /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
-    /// assert_eq!(table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), Some(&42));
-    /// assert_eq!(table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 63).unwrap()), None);
-    /// assert_eq!(table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 65).unwrap()), None);
+    /// assert_eq!(
+    ///     table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///     Some(&42)
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 63).unwrap()),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 65).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn match_exact(&self, cidr: Ipv6Cidr) -> Option<&V> {
@@ -250,9 +301,18 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0xf1, 0, 0, 0], 80).unwrap(), 3);
     ///
     /// assert_eq!(table.match_longest([0, 0, 0, 1, 0, 0, 0, 0]), None);
-    /// assert_eq!(table.match_longest([0, 0, 0, 0, 0xbb, 0, 0, 0]), Some((Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), &1)));
-    /// assert_eq!(table.match_longest([0, 0, 0, 0, 0xff, 0, 0, 1]), Some((Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap(), &2)));
-    /// assert_eq!(table.match_longest([0, 0, 0, 0, 0xf1, 0, 0, 1]), Some((Ipv6Cidr::new([0, 0, 0, 0, 0xf1, 0, 0, 0], 80).unwrap(), &3)));
+    /// assert_eq!(
+    ///     table.match_longest([0, 0, 0, 0, 0xbb, 0, 0, 0]),
+    ///     Some((Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), &1))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([0, 0, 0, 0, 0xff, 0, 0, 1]),
+    ///     Some((Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap(), &2))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([0, 0, 0, 0, 0xf1, 0, 0, 1]),
+    ///     Some((Ipv6Cidr::new([0, 0, 0, 0, 0xf1, 0, 0, 0], 80).unwrap(), &3))
+    /// );
     /// ```
     #[inline]
     pub fn match_longest<I>(&self, addr: I) -> Option<(Ipv6Cidr, &V)>
@@ -352,15 +412,27 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Cidr, Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{Cidr, CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     ///
-    /// assert_eq!(table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 1), None);
-    /// assert_eq!(table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 2), Some(1));
+    /// assert_eq!(
+    ///     table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 1),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 2),
+    ///     Some(1)
+    /// );
     ///
-    /// assert_eq!(table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 3), None);
-    /// assert_eq!(table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 4), Some(3));
+    /// assert_eq!(
+    ///     table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 3),
+    ///     None
+    /// );
+    /// assert_eq!(
+    ///     table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 4),
+    ///     Some(3)
+    /// );
     /// ```
     #[inline]
     pub fn insert<I>(&mut self, cidr: I, value: V) -> Option<V>
@@ -378,13 +450,19 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Ipv4Cidr, CidrRoutingTable};
+    /// use cidrs::{CidrRoutingTable, Ipv4Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     ///
     /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
-    /// assert_eq!(table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), Some(42));
-    /// assert_eq!(table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), None);
+    /// assert_eq!(
+    ///     table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     Some(42)
+    /// );
+    /// assert_eq!(
+    ///     table.remove(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn remove<I>(&mut self, cidr: I) -> Option<V>
@@ -402,17 +480,29 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Cidr, Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{Cidr, CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     ///
     /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 1);
     /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 2);
-    /// assert_eq!(table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()), Some(&1));
-    /// assert_eq!(table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 23).unwrap()), None);
+    /// assert_eq!(
+    ///     table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap()),
+    ///     Some(&1)
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv4Cidr::new([192, 168, 0, 0], 23).unwrap()),
+    ///     None
+    /// );
     ///
-    /// assert_eq!(table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), Some(&2));
-    /// assert_eq!(table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 63).unwrap()), None);
+    /// assert_eq!(
+    ///     table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///     Some(&2)
+    /// );
+    /// assert_eq!(
+    ///     table.match_exact(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 63).unwrap()),
+    ///     None
+    /// );
     /// ```
     #[inline]
     pub fn match_exact<I>(&self, cidr: I) -> Option<&V>
@@ -432,7 +522,7 @@ impl<V> CidrRoutingTable<V> {
     /// ```
     /// use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     ///
-    /// use cidrs::{Cidr, Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{Cidr, CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     ///
@@ -443,12 +533,30 @@ impl<V> CidrRoutingTable<V> {
     /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap(), 4);
     ///
     /// assert_eq!(table.match_longest([192, 0, 0, 0]), None);
-    /// assert_eq!(table.match_longest([192, 168, 1, 1]), Some((Cidr::V4(Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap()), &2)));
-    /// assert_eq!(table.match_longest([192, 168, 2, 1]), Some((Cidr::V4(Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap()), &1)));
+    /// assert_eq!(
+    ///     table.match_longest([192, 168, 1, 1]),
+    ///     Some((Cidr::V4(Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap()), &2))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([192, 168, 2, 1]),
+    ///     Some((Cidr::V4(Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap()), &1))
+    /// );
     ///
     /// assert_eq!(table.match_longest([0, 0, 0, 1, 0, 0, 0, 0]), None);
-    /// assert_eq!(table.match_longest([0, 0, 0, 0, 0xff, 0, 0, 1]), Some((Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap()), &4)));
-    /// assert_eq!(table.match_longest([0, 0, 0, 0, 0xf1, 0, 0, 1]), Some((Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), &3)));
+    /// assert_eq!(
+    ///     table.match_longest([0, 0, 0, 0, 0xff, 0, 0, 1]),
+    ///     Some((
+    ///         Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap()),
+    ///         &4
+    ///     ))
+    /// );
+    /// assert_eq!(
+    ///     table.match_longest([0, 0, 0, 0, 0xf1, 0, 0, 1]),
+    ///     Some((
+    ///         Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///         &3
+    ///     ))
+    /// );
     /// ```
     #[inline]
     pub fn match_longest<I>(&self, addr: I) -> Option<(Cidr, &V)>
@@ -474,7 +582,7 @@ impl<V> CidrRoutingTable<V> {
     /// ```
     /// use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
     ///
-    /// use cidrs::{Cidr, Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{Cidr, CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     ///
@@ -501,8 +609,14 @@ impl<V> CidrRoutingTable<V> {
     /// assert_eq!(
     ///     table.list_matched(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0xff, 0, 0, 1))),
     ///     vec![
-    ///         (Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()), &3),
-    ///         (Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap()), &4),
+    ///         (
+    ///             Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap()),
+    ///             &3
+    ///         ),
+    ///         (
+    ///             Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0xff, 0, 0, 0], 80).unwrap()),
+    ///             &4
+    ///         ),
     ///     ]
     /// );
     /// ```
