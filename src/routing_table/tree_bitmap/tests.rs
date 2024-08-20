@@ -61,7 +61,7 @@ fn drop_node() {
 
 #[test]
 fn drop_tree_bitmap() {
-    let mut tree = TreeBitmap::new(32);
+    let mut tree = TreeBitmap::new();
     let (d1, v1) = Dropped::new();
     tree.insert(Ipv4Cidr::new([1, 1, 1, 1], 32).unwrap(), v1);
 

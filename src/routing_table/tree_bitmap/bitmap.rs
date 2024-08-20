@@ -11,7 +11,6 @@ where
     K: Copy + Into<Nibbles<N>>,
 {
     root: NonNull<Node<(K, V)>>,
-    depth: usize,
 }
 
 impl<const N: usize, K, V> TreeBitmap<N, K, V>
@@ -19,16 +18,9 @@ where
     K: Copy + Into<Nibbles<N>>,
 {
     /// Creates a new tree bitmap.
-    ///
-    /// # Arguments
-    ///
-    /// * `max_bits` - The maximum number of bits in the key. 32 for IPv4 and 128 for IPv6.
-    pub fn new(max_bits: usize) -> Self {
+    pub fn new() -> Self {
         let root = Node::internal();
-        Self {
-            root,
-            depth: max_bits / 4,
-        }
+        Self { root }
     }
 
     pub fn list_matched<I>(&self, key: I) -> Vec<(K, &V)>
@@ -36,15 +28,12 @@ where
         I: Into<Nibbles<N>>,
     {
         let mut node = self.root;
-        let mut depth = 0;
         let mut rv = Vec::new();
         let mut is_end = false;
         for nibble in key.into() {
-            depth += 1;
             let p = unsafe { node.as_ref() };
             rv.extend(p.list_values(nibble));
-            debug_assert!((depth == self.depth) == p.is_end());
-            if nibble.bits < 4 || self.depth == depth {
+            if nibble.bits < 4 || p.is_end() {
                 is_end = true;
                 break;
             }
@@ -69,13 +58,10 @@ where
         I: Into<Nibbles<N>>,
     {
         let mut node = self.root;
-        let mut depth = 0;
         for nibble in key.into() {
-            depth += 1;
             let p = unsafe { node.as_ref() };
 
-            debug_assert!((depth == self.depth) == p.is_end());
-            if nibble.bits < 4 || depth == self.depth {
+            if nibble.bits < 4 || p.is_end() {
                 return p.get_exact_match_value(nibble).map(|(_, v)| v);
             }
             node = p.get_child(nibble.byte)?;
@@ -90,17 +76,15 @@ where
         I: Into<Nibbles<N>>,
     {
         let mut node = self.root;
-        let mut depth = 0;
         let mut rv = None;
         for nibble in key.into() {
-            depth += 1;
             let p = unsafe { node.as_ref() };
 
             if let Some((k, v)) = p.get_longest_match_value(nibble) {
                 rv = Some((k, v));
             }
 
-            if nibble.bits < 4 || depth == self.depth {
+            if nibble.bits < 4 || p.is_end() {
                 break;
             }
             node = if let Some(next) = p.get_child(nibble.byte) {
@@ -118,13 +102,10 @@ where
 
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         let mut node = self.root;
-        let mut depth = 0;
-        for nibble in key.into() {
-            depth += 1;
-
+        for (i, nibble) in key.into().enumerate() {
             let p = unsafe { node.as_mut() };
 
-            if nibble.bits < 4 || depth == self.depth {
+            if nibble.bits < 4 || p.is_end() {
                 let rv = p.remove_value(nibble).map(|(_, v)| v);
                 p.set_value(nibble, (key, value));
                 return rv;
@@ -135,7 +116,7 @@ where
                 continue;
             }
             // create new node
-            let next = if self.depth - depth == 1 {
+            let next = if (i + 1) * 4 == N * 8 {
                 Node::end()
             } else {
                 Node::internal()
@@ -152,18 +133,17 @@ where
 
     pub fn remove(&mut self, key: K) -> Option<V> {
         let mut node = self.root;
-        let mut depth = 0;
         for nibble in key.into() {
-            depth += 1;
             let p = unsafe { node.as_mut() };
-            if nibble.bits == 4 && depth < self.depth {
-                if let Some(next) = p.get_child(nibble.byte) {
-                    node = next;
-                } else {
-                    return None;
-                }
-            } else {
+
+            if nibble.bits < 4 || p.is_end() {
                 return p.remove_value(nibble).map(|(_, v)| v);
+            }
+
+            if let Some(next) = p.get_child(nibble.byte) {
+                node = next;
+            } else {
+                return None;
             }
         }
         let p = unsafe { node.as_mut() };
@@ -203,7 +183,7 @@ mod tests {
         ];
 
         for ip in tests {
-            let mut map = TreeBitmap::new(32);
+            let mut map = TreeBitmap::new();
 
             let k = ip.parse::<Ipv4Cidr>().unwrap();
             let v = ip.to_owned();
@@ -214,7 +194,7 @@ mod tests {
 
     #[test]
     fn test_ipv4_tree_bitmap_list_matched() {
-        let mut map = TreeBitmap::new(32);
+        let mut map = TreeBitmap::new();
         let cidrs = parse_ipv4_cidrs(&[
             "192.168.122.1/32",
             "192.168.122.0/31",
