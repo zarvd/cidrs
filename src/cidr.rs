@@ -221,7 +221,7 @@ impl fmt::Display for Ipv4Cidr {
 
 impl fmt::Debug for Ipv4Cidr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Ipv4Cidr({})", self)
+        write!(f, "Ipv4Cidr({self})")
     }
 }
 
@@ -442,7 +442,7 @@ impl fmt::Display for Ipv6Cidr {
 
 impl fmt::Debug for Ipv6Cidr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Ipv6Cidr({})", self)
+        write!(f, "Ipv6Cidr({self})")
     }
 }
 
@@ -588,7 +588,7 @@ impl fmt::Display for Cidr {
 
 impl fmt::Debug for Cidr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Cidr({})", self)
+        write!(f, "Cidr({self})")
     }
 }
 

@@ -201,7 +201,7 @@ impl<V> Node<V> {
     pub fn set_value(&mut self, nibble: Nibble, value: V) {
         let mask = exact_value_mask(nibble.byte, nibble.bits);
         let offset = mask.trailing_zeros() as usize;
-        debug_assert!(offset < 32, "offset = {}", offset);
+        debug_assert!(offset < 32, "offset = {offset}");
         let index = 31 - offset;
 
         debug_assert!(self.values[index].is_none());
