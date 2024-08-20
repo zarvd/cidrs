@@ -23,7 +23,7 @@ impl<V> Ipv4CidrRoutingTable<V> {
     #[inline]
     pub fn new() -> Self {
         Self {
-            bitmap: TreeBitmap::new(Ipv4Cidr::MAX_BITS as usize),
+            bitmap: TreeBitmap::new(),
         }
     }
 
@@ -206,7 +206,7 @@ impl<V> Ipv6CidrRoutingTable<V> {
     #[inline]
     pub fn new() -> Self {
         Self {
-            bitmap: TreeBitmap::new(Ipv6Cidr::MAX_BITS as usize),
+            bitmap: TreeBitmap::new(),
         }
     }
 
