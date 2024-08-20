@@ -33,7 +33,7 @@ fn fixture() -> CidrRoutingTable<u64> {
 }
 
 fn match_longest(m: &CidrRoutingTable<u64>, addr: IpAddr) -> u64 {
-    m.match_longest(addr).unwrap().1.clone()
+    *m.match_longest(addr).unwrap().1
 }
 
 fn match_longest_benchmark(c: &mut Criterion) {
@@ -45,7 +45,7 @@ fn match_longest_benchmark(c: &mut Criterion) {
 }
 
 fn match_exact(m: &CidrRoutingTable<u64>, cidr: Cidr) -> u64 {
-    m.match_exact(cidr).unwrap().clone()
+    *m.match_exact(cidr).unwrap()
 }
 
 fn match_exact_benchmark(c: &mut Criterion) {
