@@ -1,14 +1,15 @@
 pub(crate) mod tree_bitmap;
 
-pub use crate::cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
-
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+use crate::cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
 
 use tree_bitmap::TreeBitmap;
 
 /// A routing table for IPv4 CIDRs.
 pub struct Ipv4CidrRoutingTable<V> {
     bitmap: TreeBitmap<4, Ipv4Cidr, V>,
+    len: usize,
 }
 
 impl<V> Ipv4CidrRoutingTable<V> {
@@ -24,7 +25,45 @@ impl<V> Ipv4CidrRoutingTable<V> {
     pub fn new() -> Self {
         Self {
             bitmap: TreeBitmap::new(),
+            len: 0,
         }
+    }
+
+    /// Returns the number of elements in the table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv4CidrRoutingTable};
+    ///
+    /// let mut table = Ipv4CidrRoutingTable::<u64>::new();
+    /// assert_eq!(table.len(), 0);
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert_eq!(table.len(), 1);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns `true` if the table contains no elements.
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv4CidrRoutingTable};
+    ///
+    /// let mut table = Ipv4CidrRoutingTable::<u64>::new();
+    /// assert!(table.is_empty());
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert!(!table.is_empty());
+    /// ```
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Inserts a IPv4 CIDR and its value into the table.
@@ -50,7 +89,11 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn insert(&mut self, cidr: Ipv4Cidr, value: V) -> Option<V> {
-        self.bitmap.insert(cidr, value)
+        let v = self.bitmap.insert(cidr, value);
+        if v.is_none() {
+            self.len += 1;
+        }
+        v
     }
 
     /// Removes a IPv4 CIDR from the table, returning the value at the key if the key was previously in the table.
@@ -73,7 +116,11 @@ impl<V> Ipv4CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn remove(&mut self, cidr: Ipv4Cidr) -> Option<V> {
-        self.bitmap.remove(cidr)
+        let v = self.bitmap.remove(cidr);
+        if v.is_some() {
+            self.len -= 1;
+        }
+        v
     }
 
     /// Matches the exact IPv4 CIDR, returning the value at the key if the key was previously in the table.
@@ -192,6 +239,7 @@ impl<V> Default for Ipv4CidrRoutingTable<V> {
 /// A routing table for IPv6 CIDRs.
 pub struct Ipv6CidrRoutingTable<V> {
     bitmap: TreeBitmap<16, Ipv6Cidr, V>,
+    len: usize,
 }
 
 impl<V> Ipv6CidrRoutingTable<V> {
@@ -207,7 +255,45 @@ impl<V> Ipv6CidrRoutingTable<V> {
     pub fn new() -> Self {
         Self {
             bitmap: TreeBitmap::new(),
+            len: 0,
         }
+    }
+
+    /// Returns the number of elements in the table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::{Ipv6Cidr, Ipv6CidrRoutingTable};
+    ///
+    /// let mut table = Ipv6CidrRoutingTable::<u64>::new();
+    /// assert_eq!(table.len(), 0);
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert_eq!(table.len(), 1);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Returns `true` if the table contains no elements.
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// use cidrs::{Ipv6Cidr, Ipv6CidrRoutingTable};
+    ///
+    /// let mut table = Ipv6CidrRoutingTable::<u64>::new();
+    /// assert!(table.is_empty());
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert!(!table.is_empty());
+    /// ```
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.len == 0
     }
 
     /// Inserts a IPv6 CIDR and its value into the table.
@@ -233,7 +319,11 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn insert(&mut self, cidr: Ipv6Cidr, value: V) -> Option<V> {
-        self.bitmap.insert(cidr, value)
+        let v = self.bitmap.insert(cidr, value);
+        if v.is_none() {
+            self.len += 1;
+        }
+        v
     }
 
     /// Removes a IPv6 CIDR from the table, returning the value at the key if the key was previously in the table.
@@ -256,7 +346,11 @@ impl<V> Ipv6CidrRoutingTable<V> {
     /// ```
     #[inline]
     pub fn remove(&mut self, cidr: Ipv6Cidr) -> Option<V> {
-        self.bitmap.remove(cidr)
+        let v = self.bitmap.remove(cidr);
+        if v.is_some() {
+            self.len -= 1;
+        }
+        v
     }
 
     /// Matches the exact IPv6 CIDR, returning the value at the key if the key was previously in the table.
@@ -401,6 +495,91 @@ impl<V> CidrRoutingTable<V> {
             v4: Ipv4CidrRoutingTable::new(),
             v6: Ipv6CidrRoutingTable::new(),
         }
+    }
+
+    /// Returns the number of elements in the table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    ///
+    /// let mut table = CidrRoutingTable::<u64>::new();
+    /// assert_eq!(table.len(), 0);
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert_eq!(table.len(), 1);
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert_eq!(table.len(), 2);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> usize {
+        self.v4.len() + self.v6.len()
+    }
+
+    /// Returns the number of elements with IPv4 CIDR in the table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    ///
+    /// let mut table = CidrRoutingTable::<u64>::new();
+    /// assert_eq!(table.ipv4_len(), 0);
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert_eq!(table.ipv4_len(), 1);
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert_eq!(table.ipv4_len(), 1);
+    /// ```
+    #[inline]
+    pub const fn ipv4_len(&self) -> usize {
+        self.v4.len()
+    }
+
+    /// Returns the number of elements with IPv4 CIDR in the table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    ///
+    /// let mut table = CidrRoutingTable::<u64>::new();
+    /// assert_eq!(table.ipv6_len(), 0);
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert_eq!(table.ipv6_len(), 1);
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert_eq!(table.ipv6_len(), 1);
+    /// ```
+    #[inline]
+    pub const fn ipv6_len(&self) -> usize {
+        self.v6.len()
+    }
+
+    /// Returns `true` if the table contains no elements.
+    ///
+    /// # Examples
+    ///
+    ///
+    /// ```
+    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    ///
+    /// let mut table = CidrRoutingTable::<u64>::new();
+    /// assert!(table.is_empty());
+    ///
+    /// table.insert(Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap(), 42);
+    /// assert!(!table.is_empty());
+    ///
+    /// table.insert(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 64).unwrap(), 42);
+    /// assert!(!table.is_empty());
+    /// ```
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.v4.is_empty() && self.v6.is_empty()
     }
 
     /// Inserts a CIDR and its value into the table.
