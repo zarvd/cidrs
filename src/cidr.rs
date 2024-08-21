@@ -339,11 +339,7 @@ impl Iterator for Ipv4Hosts {
             None => return (usize::MAX, None),
         };
 
-        if let Ok(n) = usize::try_from(n) {
-            (n, Some(n))
-        } else {
-            (usize::MAX, None)
-        }
+        usize::try_from(n).map_or((usize::MAX, None), |n| (n, Some(n)))
     }
 
     fn count(self) -> usize
@@ -634,11 +630,7 @@ impl Iterator for Ipv6Hosts {
             None => return (usize::MAX, None),
         };
 
-        if let Ok(n) = usize::try_from(n) {
-            (n, Some(n))
-        } else {
-            (usize::MAX, None)
-        }
+        usize::try_from(n).map_or((usize::MAX, None), |n| (n, Some(n)))
     }
 
     fn count(self) -> usize
