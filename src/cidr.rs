@@ -96,7 +96,7 @@ impl Ipv4Cidr {
         Ok(Self { octets, bits })
     }
 
-    /// Returns the IP address with the mask applied.
+    /// Returns the network address of the CIDR block.
     ///
     /// # Examples
     ///
@@ -105,15 +105,15 @@ impl Ipv4Cidr {
     ///
     /// use cidrs::Ipv4Cidr;
     ///
-    /// let cidr = Ipv4Cidr::new([192, 168, 0, 1], 24).unwrap();
-    /// assert_eq!(cidr.addr(), Ipv4Addr::new(192, 168, 0, 0)); // truncated
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// assert_eq!(cidr.network_addr(), Ipv4Addr::new(192, 168, 0, 0));
     /// ```
     #[inline]
-    pub const fn addr(&self) -> Ipv4Addr {
+    pub const fn network_addr(&self) -> Ipv4Addr {
         Ipv4Addr::from_bits(u32::from_be_bytes(self.octets))
     }
 
-    /// Returns an iterator over the usable host addresses in the network.
+    /// Returns the broadcast address of the CIDR block.
     ///
     /// # Examples
     ///
@@ -122,6 +122,36 @@ impl Ipv4Cidr {
     ///
     /// use cidrs::Ipv4Cidr;
     ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// assert_eq!(cidr.broadcast_addr(), Ipv4Addr::new(192, 168, 0, 255));
+    /// ```
+    #[inline]
+    pub const fn broadcast_addr(&self) -> Ipv4Addr {
+        let mask = Self::mask_of(self.bits);
+        let network = u32::from_be_bytes(self.octets);
+        Ipv4Addr::from_bits(network | !mask)
+    }
+
+    /// Returns an iterator over the usable host addresses in the network.
+    /// For networks with a mask length of 31 or 32, all addresses are included.
+    /// For networks with a mask length less than 31, the network address and broadcast address are excluded.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv4Addr;
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// // Example with /24 network (256 addresses)
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// let mut hosts = cidr.hosts();
+    ///
+    /// assert_eq!(hosts.next(), Some(Ipv4Addr::new(192, 168, 0, 1)));
+    /// assert_eq!(hosts.next(), Some(Ipv4Addr::new(192, 168, 0, 2)));
+    /// // ... more addresses ...
+    /// assert_eq!(hosts.last(), Some(Ipv4Addr::new(192, 168, 0, 254)));
+    ///
+    /// // Example with /31 network (2 addresses)
     /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 31).unwrap();
     /// let mut hosts = cidr.hosts();
     ///
@@ -133,11 +163,24 @@ impl Ipv4Cidr {
     pub const fn hosts(&self) -> Ipv4Hosts {
         let min = u32::from_be_bytes(self.octets);
         let max = min + (u32::MAX ^ Self::mask_of(self.bits));
-        let end = if max == u32::MAX { None } else { Some(max + 1) };
-        Ipv4Hosts { cursor: min, end }
-    }
+        let end = if max == u32::MAX { None } else { Some(max) };
 
-    /// Returns the mask for the CIDR block.
+        if self.bits >= 31 {
+            Ipv4Hosts {
+                cursor: min,
+                end: if let Some(v) = end { Some(v + 1) } else { None },
+            }
+        } else {
+            Ipv4Hosts {
+                cursor: min + 1,
+                end: if let Some(v) = end {
+                    Some(v)
+                } else {
+                    Some(u32::MAX)
+                },
+            }
+        }
+    }
     ///
     /// # Examples
     ///
@@ -454,55 +497,146 @@ impl Ipv6Cidr {
         Ok(Self { octets, bits })
     }
 
-    /// Returns the IP address with the mask applied.
-    #[inline]
-    pub const fn addr(&self) -> Ipv6Addr {
-        Ipv6Addr::from_bits(u128::from_be_bytes(self.octets))
-    }
-
-    /// Returns an iterator over the usable host addresses in the network.
+    /// Returns the network address of the CIDR block.
     ///
     /// # Examples
     ///
     /// ```
     /// use core::net::Ipv6Addr;
-    ///
     /// use cidrs::Ipv6Cidr;
     ///
-    /// let cidr = Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 127).unwrap();
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 32).unwrap();
+    /// assert_eq!(cidr.network_addr(), Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0));
+    /// ```
+    #[inline]
+    pub const fn network_addr(&self) -> Ipv6Addr {
+        Ipv6Addr::from_bits(u128::from_be_bytes(self.octets))
+    }
+
+    /// Returns the broadcast address of the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv6Addr;
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 32).unwrap();
+    /// assert_eq!(cidr.broadcast_addr(), Ipv6Addr::new(0x2001, 0xdb8, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff));
+    /// ```
+    #[inline]
+    pub const fn broadcast_addr(&self) -> Ipv6Addr {
+        let mask = Self::mask_of(self.bits);
+        let network = u128::from_be_bytes(self.octets);
+        Ipv6Addr::from_bits(network | !mask)
+    }
+
+    /// Returns an iterator over the usable host addresses in the network.
+    /// For networks with a mask length of 127 or 128, all addresses are included.
+    /// For networks with a mask length less than 127, the network address and broadcast address are excluded.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv6Addr;
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// // Example with /126 network (4 addresses)
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 126).unwrap();
     /// let mut hosts = cidr.hosts();
     ///
-    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)));
-    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)));
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 2)));
+    /// assert_eq!(hosts.next(), None);
+    ///
+    /// // Example with /127 network (2 addresses)
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 127).unwrap();
+    /// let mut hosts = cidr.hosts();
+    ///
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0)));
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)));
     /// assert_eq!(hosts.next(), None);
     /// ```
     #[inline]
     pub const fn hosts(&self) -> Ipv6Hosts {
         let min = u128::from_be_bytes(self.octets);
         let max = min + (u128::MAX ^ Self::mask_of(self.bits));
-        let end = if max == u128::MAX {
-            None
-        } else {
-            Some(max + 1)
-        };
-        Ipv6Hosts { cursor: min, end }
-    }
+        let end = if max == u128::MAX { None } else { Some(max) };
 
+        if self.bits >= 127 {
+            Ipv6Hosts {
+                cursor: min,
+                end: if let Some(v) = end { Some(v + 1) } else { None },
+            }
+        } else {
+            Ipv6Hosts {
+                cursor: min + 1,
+                end: if let Some(v) = end {
+                    Some(v)
+                } else {
+                    Some(u128::MAX)
+                },
+            }
+        }
+    }
+    /// Returns the subnet mask of the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    /// assert_eq!(cidr.mask(), 0xffffffffffffffff0000000000000000);
+    /// ```
     #[inline]
     pub const fn mask(&self) -> u128 {
         Self::mask_of(self.bits)
     }
 
+    /// Returns the sixteen eight-bit integers that make up this CIDR.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1], 64).unwrap();
+    /// assert_eq!(cidr.octets(), [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    /// ```
     #[inline]
     pub const fn octets(&self) -> [u8; 16] {
         self.octets
     }
 
+    /// Returns the number of bits in the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    /// assert_eq!(cidr.bits(), 64);
+    /// ```
     #[inline]
     pub const fn bits(&self) -> u8 {
         self.bits
     }
 
+    /// Returns `true` if the CIDR block contains the given IPv6 address.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv6Addr;
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    ///
+    /// assert!(cidr.contains(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)));
+    /// assert!(!cidr.contains(Ipv6Addr::new(0x2001, 0xdb9, 0, 0, 0, 0, 0, 1)));
+    /// ```
     #[inline]
     pub const fn contains(&self, addr: Ipv6Addr) -> bool {
         let addr = addr.to_bits();
@@ -512,6 +646,21 @@ impl Ipv6Cidr {
         addr & mask == cidr
     }
 
+    /// Returns `true` if the CIDR block overlaps with the given CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr1 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    /// let cidr2 = Ipv6Cidr::new([0x2001, 0xdb8, 1, 0, 0, 0, 0, 0], 64).unwrap();
+    /// let cidr3 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 32).unwrap();
+    ///
+    /// assert!(!cidr1.overlaps(&cidr2));
+    /// assert!(cidr1.overlaps(&cidr3));
+    /// assert!(cidr2.overlaps(&cidr3));
+    /// ```
     #[inline]
     pub const fn overlaps(&self, other: &Self) -> bool {
         let min_bits = if self.bits < other.bits {
@@ -652,7 +801,32 @@ pub enum Cidr {
 }
 
 impl Cidr {
-    pub fn from_ip<I>(ip: I, bits: u8) -> Result<Self>
+    /// Creates a new `Cidr` from an IP address and a number of bits.
+    ///
+    /// This function will create either an IPv4 or IPv6 CIDR block depending on the type of IP address provided.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use std::str::FromStr;
+    /// use cidrs::Cidr;
+    ///
+    /// // Creating an IPv4 CIDR
+    /// let ipv4_addr = IpAddr::from_str("192.168.0.1").unwrap();
+    /// let ipv4_cidr = Cidr::new(ipv4_addr, 24).unwrap();
+    /// assert_eq!(ipv4_cidr.to_string(), "192.168.0.0/24");
+    ///
+    /// // Creating an IPv6 CIDR
+    /// let ipv6_addr = IpAddr::from_str("2001:db8::1").unwrap();
+    /// let ipv6_cidr = Cidr::new(ipv6_addr, 64).unwrap();
+    /// assert_eq!(ipv6_cidr.to_string(), "2001:db8::/64");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the number of bits is invalid for the given IP version.
+    pub fn new<I>(ip: I, bits: u8) -> Result<Self>
     where
         I: Into<IpAddr>,
     {
@@ -662,11 +836,45 @@ impl Cidr {
         }
     }
 
-    /// Returns the IP address with the mask applied.
-    pub const fn addr(&self) -> IpAddr {
+    /// Returns the network address of the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1)), 24).unwrap();
+    /// assert_eq!(ipv4_cidr.network_addr(), IpAddr::V4(Ipv4Addr::new(192, 168, 0, 0)));
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)), 32).unwrap();
+    /// assert_eq!(ipv6_cidr.network_addr(), IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 0)));
+    /// ```
+    pub const fn network_addr(&self) -> IpAddr {
         match self {
-            Cidr::V4(v4) => IpAddr::V4(v4.addr()),
-            Cidr::V6(v6) => IpAddr::V6(v6.addr()),
+            Cidr::V4(v4) => IpAddr::V4(v4.network_addr()),
+            Cidr::V6(v6) => IpAddr::V6(v6.network_addr()),
+        }
+    }
+
+    /// Returns the broadcast address of the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1)), 24).unwrap();
+    /// assert_eq!(ipv4_cidr.broadcast_addr(), IpAddr::V4(Ipv4Addr::new(192, 168, 0, 255)));
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)), 32).unwrap();
+    /// assert_eq!(ipv6_cidr.broadcast_addr(), IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff)));
+    /// ```
+    pub const fn broadcast_addr(&self) -> IpAddr {
+        match self {
+            Cidr::V4(v4) => IpAddr::V4(v4.broadcast_addr()),
+            Cidr::V6(v6) => IpAddr::V6(v6.broadcast_addr()),
         }
     }
 
@@ -699,6 +907,20 @@ impl Cidr {
         }
     }
 
+    /// Returns the number of bits in the CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4([192, 168, 0, 1].into()), 24).unwrap();
+    /// assert_eq!(ipv4_cidr.bits(), 24);
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1].into()), 64).unwrap();
+    /// assert_eq!(ipv6_cidr.bits(), 64);
+    /// ```
     #[inline]
     pub const fn bits(&self) -> u8 {
         match self {
@@ -707,6 +929,22 @@ impl Cidr {
         }
     }
 
+    /// Returns `true` if the CIDR block contains the given IP address.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4([192, 168, 0, 1].into()), 24).unwrap();
+    /// assert!(ipv4_cidr.contains(IpAddr::V4([192, 168, 0, 100].into())));
+    /// assert!(!ipv4_cidr.contains(IpAddr::V4([192, 168, 1, 1].into())));
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1].into()), 64).unwrap();
+    /// assert!(ipv6_cidr.contains(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 2].into())));
+    /// assert!(!ipv6_cidr.contains(IpAddr::V6([0x2001, 0xdb9, 0, 0, 0, 0, 0, 1].into())));
+    /// ```
     #[inline]
     pub const fn contains(&self, addr: IpAddr) -> bool {
         match (self, addr) {
@@ -716,6 +954,30 @@ impl Cidr {
         }
     }
 
+    /// Returns `true` if the CIDR block overlaps with the given CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let cidr1 = Cidr::new(IpAddr::V4([192, 168, 0, 0].into()), 24).unwrap();
+    /// let cidr2 = Cidr::new(IpAddr::V4([192, 168, 1, 0].into()), 24).unwrap();
+    /// let cidr3 = Cidr::new(IpAddr::V4([192, 168, 0, 0].into()), 16).unwrap();
+    ///
+    /// assert!(!cidr1.overlaps(&cidr2));
+    /// assert!(cidr1.overlaps(&cidr3));
+    /// assert!(cidr2.overlaps(&cidr3));
+    ///
+    /// let cidr4 = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0].into()), 48).unwrap();
+    /// let cidr5 = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0x1, 0, 0, 0, 0, 0].into()), 48).unwrap();
+    /// let cidr6 = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0].into()), 32).unwrap();
+    ///
+    /// assert!(!cidr4.overlaps(&cidr5));
+    /// assert!(cidr4.overlaps(&cidr6));
+    /// assert!(cidr5.overlaps(&cidr6));
+    /// ```
     #[inline]
     pub const fn overlaps(&self, other: &Self) -> bool {
         match (self, other) {
@@ -728,6 +990,19 @@ impl Cidr {
     /// Returns [`true`] if the CIDR block is an [`IPv4` CIDR block], and [`false`] otherwise.
     ///
     /// [`IPv4` CIDR block]: Cidr::V4
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4([192, 168, 0, 1].into()), 24).unwrap();
+    /// assert!(ipv4_cidr.is_ipv4());
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1].into()), 64).unwrap();
+    /// assert!(!ipv6_cidr.is_ipv4());
+    /// ```
     #[inline]
     pub const fn is_ipv4(&self) -> bool {
         matches!(self, Cidr::V4(_))
@@ -736,6 +1011,19 @@ impl Cidr {
     /// Returns [`true`] if the CIDR block is an [`IPv6` CIDR block], and [`false`] otherwise.
     ///
     /// [`IPv6` CIDR block]: Cidr::V6
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv6_cidr = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1].into()), 64).unwrap();
+    /// assert!(ipv6_cidr.is_ipv6());
+    ///
+    /// let ipv4_cidr = Cidr::new(IpAddr::V4([192, 168, 0, 1].into()), 24).unwrap();
+    /// assert!(!ipv4_cidr.is_ipv6());
+    /// ```
     #[inline]
     pub const fn is_ipv6(&self) -> bool {
         matches!(self, Cidr::V6(_))
