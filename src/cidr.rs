@@ -113,6 +113,30 @@ impl Ipv4Cidr {
         Ipv4Addr::from_bits(u32::from_be_bytes(self.octets))
     }
 
+    /// Returns an iterator over the usable host addresses in the network.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv4Addr;
+    ///
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 31).unwrap();
+    /// let mut hosts = cidr.hosts();
+    ///
+    /// assert_eq!(hosts.next(), Some(Ipv4Addr::new(192, 168, 0, 0)));
+    /// assert_eq!(hosts.next(), Some(Ipv4Addr::new(192, 168, 0, 1)));
+    /// assert_eq!(hosts.next(), None);
+    /// ```
+    #[inline]
+    pub const fn hosts(&self) -> Ipv4Hosts {
+        let min = u32::from_be_bytes(self.octets);
+        let max = min + (u32::MAX ^ Self::mask_of(self.bits));
+        let end = if max == u32::MAX { None } else { Some(max + 1) };
+        Ipv4Hosts { cursor: min, end }
+    }
+
     /// Returns the mask for the CIDR block.
     ///
     /// # Examples
@@ -284,6 +308,52 @@ impl FromStr for Ipv4Cidr {
     }
 }
 
+pub struct Ipv4Hosts {
+    cursor: u32,
+    end: Option<u32>,
+}
+
+impl Iterator for Ipv4Hosts {
+    type Item = Ipv4Addr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.end.is_some_and(|end| self.cursor >= end) {
+            return None;
+        }
+
+        let rv = Some(Ipv4Addr::from_bits(self.cursor));
+
+        if self.cursor < u32::MAX {
+            self.cursor += 1;
+        } else {
+            self.end = Some(u32::MAX); // as a stop mark
+        }
+
+        rv
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = match self.end {
+            Some(end) => end - self.cursor,
+            None if self.cursor > 0 => u32::MAX - self.cursor + 1,
+            None => return (usize::MAX, None),
+        };
+
+        if let Ok(n) = usize::try_from(n) {
+            (n, Some(n))
+        } else {
+            (usize::MAX, None)
+        }
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.size_hint().1.expect("count overflow")
+    }
+}
+
 /// An IPv6 CIDR block.
 ///
 /// IPv6 CIDR blocks are represented as an IPv6 address and a number of bits.
@@ -392,6 +462,34 @@ impl Ipv6Cidr {
     #[inline]
     pub const fn addr(&self) -> Ipv6Addr {
         Ipv6Addr::from_bits(u128::from_be_bytes(self.octets))
+    }
+
+    /// Returns an iterator over the usable host addresses in the network.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::Ipv6Addr;
+    ///
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 127).unwrap();
+    /// let mut hosts = cidr.hosts();
+    ///
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)));
+    /// assert_eq!(hosts.next(), Some(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+    /// assert_eq!(hosts.next(), None);
+    /// ```
+    #[inline]
+    pub const fn hosts(&self) -> Ipv6Hosts {
+        let min = u128::from_be_bytes(self.octets);
+        let max = min + (u128::MAX ^ Self::mask_of(self.bits));
+        let end = if max == u128::MAX {
+            None
+        } else {
+            Some(max + 1)
+        };
+        Ipv6Hosts { cursor: min, end }
     }
 
     #[inline]
@@ -505,6 +603,52 @@ impl FromStr for Ipv6Cidr {
     }
 }
 
+pub struct Ipv6Hosts {
+    cursor: u128,
+    end: Option<u128>,
+}
+
+impl Iterator for Ipv6Hosts {
+    type Item = Ipv6Addr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.end.is_some_and(|end| self.cursor >= end) {
+            return None;
+        }
+
+        let rv = Some(Ipv6Addr::from_bits(self.cursor));
+
+        if self.cursor < u128::MAX {
+            self.cursor += 1;
+        } else {
+            self.end = Some(u128::MAX); // as a stop mark
+        }
+
+        rv
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = match self.end {
+            Some(end) => end - self.cursor,
+            None if self.cursor > 0 => u128::MAX - self.cursor + 1,
+            None => return (usize::MAX, None),
+        };
+
+        if let Ok(n) = usize::try_from(n) {
+            (n, Some(n))
+        } else {
+            (usize::MAX, None)
+        }
+    }
+
+    fn count(self) -> usize
+    where
+        Self: Sized,
+    {
+        self.size_hint().1.expect("count overflow")
+    }
+}
+
 /// An IP CIDR, either IPv4 or IPv6.
 ///
 /// This enum can contain either an [`Ipv4Cidr`] or an [`Ipv6Cidr`], see their
@@ -531,6 +675,35 @@ impl Cidr {
         match self {
             Cidr::V4(v4) => IpAddr::V4(v4.addr()),
             Cidr::V6(v6) => IpAddr::V6(v6.addr()),
+        }
+    }
+
+    /// Returns an iterator over the usable host addresses in the network.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::{IpAddr, Ipv6Addr};
+    ///
+    /// use cidrs::{Cidr, Ipv6Cidr};
+    ///
+    /// let cidr = Cidr::V6(Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 127).unwrap());
+    /// let mut hosts = cidr.hosts();
+    ///
+    /// assert_eq!(
+    ///     hosts.next(),
+    ///     Some(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)))
+    /// );
+    /// assert_eq!(
+    ///     hosts.next(),
+    ///     Some(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)))
+    /// );
+    /// assert_eq!(hosts.next(), None);
+    /// ```
+    pub const fn hosts(&self) -> Hosts {
+        match self {
+            Cidr::V4(v4) => Hosts::V4(v4.hosts()),
+            Cidr::V6(v6) => Hosts::V6(v6.hosts()),
         }
     }
 
@@ -669,6 +842,22 @@ impl FromStr for Cidr {
         }
 
         Err(Error::CidrParseError(CidrParseKind::Ip))
+    }
+}
+
+pub enum Hosts {
+    V4(Ipv4Hosts),
+    V6(Ipv6Hosts),
+}
+
+impl Iterator for Hosts {
+    type Item = IpAddr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::V4(v4) => v4.next().map(IpAddr::V4),
+            Self::V6(v6) => v6.next().map(IpAddr::V6),
+        }
     }
 }
 

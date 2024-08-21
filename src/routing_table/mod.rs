@@ -502,7 +502,7 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     /// assert_eq!(table.len(), 0);
@@ -523,7 +523,7 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     /// assert_eq!(table.ipv4_len(), 0);
@@ -544,7 +544,7 @@ impl<V> CidrRoutingTable<V> {
     /// # Examples
     ///
     /// ```
-    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     /// assert_eq!(table.ipv6_len(), 0);
@@ -566,7 +566,7 @@ impl<V> CidrRoutingTable<V> {
     ///
     ///
     /// ```
-    /// use cidrs::{Ipv4Cidr, Ipv6Cidr, CidrRoutingTable};
+    /// use cidrs::{CidrRoutingTable, Ipv4Cidr, Ipv6Cidr};
     ///
     /// let mut table = CidrRoutingTable::<u64>::new();
     /// assert!(table.is_empty());
