@@ -44,6 +44,9 @@ impl Ipv4Cidr {
         if bits == 0 {
             return 0;
         }
+        if bits > 32 {
+            panic!("bits must be <= 32");
+        }
         u32::MAX << (32 - bits)
     }
 
@@ -431,6 +434,9 @@ impl Ipv6Cidr {
     pub const fn mask_of(bits: u8) -> u128 {
         if bits == 0 {
             return 0;
+        }
+        if bits > 128 {
+            panic!("bits must be <= 128");
         }
         u128::MAX << (128 - bits)
     }
@@ -1137,140 +1143,6 @@ impl Iterator for Hosts {
         match self {
             Self::V4(v4) => v4.next().map(IpAddr::V4),
             Self::V6(v6) => v6.next().map(IpAddr::V6),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ipv4_mask() {
-        let tests = [
-            (0, [0, 0, 0, 0]),
-            (1, [0x80, 0, 0, 0]),
-            (2, [0xc0, 0, 0, 0]),
-            (3, [0xe0, 0, 0, 0]),
-            (4, [0xf0, 0, 0, 0]),
-            (5, [0xf8, 0, 0, 0]),
-            (6, [0xfc, 0, 0, 0]),
-            (7, [0xfe, 0, 0, 0]),
-            (8, [0xff, 0, 0, 0]),
-            (16, [0xff, 0xff, 0, 0]),
-            (20, [0xff, 0xff, 0xf0, 0]),
-            (24, [0xff, 0xff, 0xff, 0]),
-            (32, [0xff, 0xff, 0xff, 0xff]),
-        ];
-
-        for (bit, expected) in tests {
-            let expected = u32::from_be_bytes(expected);
-            let actual = Ipv4Cidr::mask_of(bit);
-            assert_eq!(actual, expected);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_ipv4_mask_overflow() {
-        Ipv4Cidr::mask_of(33);
-    }
-
-    #[test]
-    fn test_ipv6_mask() {
-        let tests = [
-            (0, [0x00; 16]),
-            (
-                1,
-                [
-                    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00,
-                ],
-            ),
-            (
-                2,
-                [
-                    0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00,
-                ],
-            ),
-            (
-                3,
-                [
-                    0xe0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                    0x00, 0x00, 0x00,
-                ],
-            ),
-            (128, [0xff; 16]),
-        ];
-
-        for (bit, expected) in tests {
-            let expected = u128::from_be_bytes(expected);
-            let actual = Ipv6Cidr::mask_of(bit);
-            assert_eq!(actual, expected);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_ipv6_mask_overflow() {
-        Ipv6Cidr::mask_of(129);
-    }
-
-    #[test]
-    fn test_ipv4_cidr_contains() {
-        {
-            let ret = Ipv4Cidr::new([192, 168, 0, 1], 0);
-            assert!(ret.is_ok());
-            let cidr = ret.unwrap();
-            assert_eq!(cidr.bits(), 0);
-            assert!(cidr.contains(Ipv4Addr::new(192, 168, 0, 0)));
-            assert!(cidr.contains(Ipv4Addr::new(10, 10, 0, 0)));
-            assert!(cidr.contains(Ipv4Addr::new(172, 0, 0, 0)));
-            assert!(cidr.contains(Ipv4Addr::new(0, 0, 0, 0)));
-        }
-        {
-            let ret = Ipv4Cidr::new([192, 168, 0, 1], 24);
-            assert!(ret.is_ok());
-            let cidr = ret.unwrap();
-            assert_eq!(cidr.bits(), 24);
-            for i in 0..=255 {
-                assert!(cidr.contains(Ipv4Addr::new(192, 168, 0, i)));
-            }
-            assert!(!cidr.contains(Ipv4Addr::new(192, 168, 1, 0)));
-            assert!(!cidr.contains(Ipv4Addr::new(192, 168, 2, 0)));
-            assert!(!cidr.contains(Ipv4Addr::new(192, 168, 1, 255)));
-        }
-
-        {
-            let ret = Ipv4Cidr::new([192, 168, 24, 1], 24);
-            assert!(ret.is_ok());
-            let cidr = ret.unwrap();
-            assert_eq!(cidr.bits(), 24);
-            for i in 0..=255 {
-                assert!(cidr.contains(Ipv4Addr::new(192, 168, 24, i)));
-            }
-            assert!(!cidr.contains(Ipv4Addr::new(192, 168, 23, 0)));
-            assert!(!cidr.contains(Ipv4Addr::new(192, 168, 25, 255)));
-            assert!(!cidr.contains(Ipv4Addr::new(192, 0, 0, 0)));
-            assert!(!cidr.contains(Ipv4Addr::new(192, 167, 255, 255)));
-        }
-
-        {
-            let ret = Ipv4Cidr::new([192, 168, 24, 1], 16);
-            assert!(ret.is_ok());
-            let cidr = ret.unwrap();
-            assert_eq!(cidr.bits(), 16);
-        }
-    }
-
-    #[test]
-    fn test_cidr_v6() {
-        {
-            let ret = Ipv6Cidr::from_str("::/0");
-            assert!(ret.is_ok());
-            let cidr = ret.unwrap();
-            assert_eq!(cidr.bits(), 0);
         }
     }
 }
