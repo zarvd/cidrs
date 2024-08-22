@@ -30,5 +30,17 @@ name = "routing_table"
 required-features = ["routing-table"]
 
 [[test]]
-name = "routing_table"
+name = "routing_table_insert"
+required-features = ["routing-table"]
+
+[[test]]
+name = "routing_table_len"
+required-features = ["routing-table"]
+
+[[test]]
+name = "routing_table_list_matched"
+required-features = ["routing-table"]
+
+[[test]]
+name = "routing_table_match_longest"
 required-features = ["routing-table"]
