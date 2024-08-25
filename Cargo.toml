@@ -1,7 +1,7 @@
 [package]
 name = "cidrs"
 description = "CIDR Library"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["zarvd <jialun.cai@pm.me>"]
 keywords = ["Network", "IP", "CIDR"]
 homepage = "https://github.com/zarvd/cidrs"
