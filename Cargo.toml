@@ -48,3 +48,9 @@ required-features = ["routing-table"]
 [[test]]
 name = "routing_table_match_longest"
 required-features = ["routing-table"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.playground]
+all-features = true
