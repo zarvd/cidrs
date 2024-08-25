@@ -28,6 +28,7 @@
 mod cidr;
 mod error;
 
+mod aggregate;
 #[cfg(feature = "routing-table")]
 mod routing_table;
 
@@ -36,3 +37,5 @@ pub use routing_table::{CidrRoutingTable, Ipv4CidrRoutingTable, Ipv6CidrRoutingT
 
 pub use cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
 pub use error::{Error, Result};
+
+pub use aggregate::{aggregate, aggregate_ipv4, aggregate_ipv6, partition_by_ip_family};

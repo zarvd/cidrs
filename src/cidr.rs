@@ -1,3 +1,4 @@
+use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -184,6 +185,33 @@ impl Ipv4Cidr {
             }
         }
     }
+
+    /// Returns the supernet of this CIDR block, if possible.
+    ///
+    /// The supernet is the next larger network that contains this CIDR block.
+    /// If the current CIDR block has 0 bits (representing the entire IPv4 address space),
+    /// this method returns `None` as there is no larger network possible.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// let supernet = cidr.supernet().unwrap();
+    /// assert_eq!(supernet, Ipv4Cidr::new([192, 168, 0, 0], 23).unwrap());
+    ///
+    /// let entire_space = Ipv4Cidr::new([0, 0, 0, 0], 0).unwrap();
+    /// assert_eq!(entire_space.supernet(), None);
+    /// ```
+    #[inline]
+    pub fn supernet(&self) -> Option<Ipv4Cidr> {
+        match self.bits() {
+            0 => None,
+            bits => Some(Ipv4Cidr::new(self.octets(), bits - 1).unwrap()),
+        }
+    }
+
     ///
     /// # Examples
     ///
@@ -354,9 +382,95 @@ impl FromStr for Ipv4Cidr {
     }
 }
 
+/// Implements partial ordering for `Ipv4Cidr`.
+///
+/// This implementation delegates to the `Ord` implementation.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv4Cidr;
+/// use std::cmp::Ordering;
+///
+/// let cidr1 = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+/// let cidr2 = Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap();
+/// let cidr3 = Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap();
+///
+/// assert_eq!(cidr1.partial_cmp(&cidr2), Some(Ordering::Greater));
+/// assert_eq!(cidr1.partial_cmp(&cidr3), Some(Ordering::Less));
+/// assert_eq!(cidr3.partial_cmp(&cidr1), Some(Ordering::Greater));
+/// ```
+impl PartialOrd for Ipv4Cidr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Implements total ordering for `Ipv4Cidr`.
+///
+/// CIDRs are first compared by their network address, then by their prefix length.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv4Cidr;
+/// use std::cmp::Ordering;
+///
+/// let cidr1 = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+/// let cidr2 = Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap();
+/// let cidr3 = Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap();
+///
+/// assert_eq!(cidr1.cmp(&cidr2), Ordering::Greater);
+/// assert_eq!(cidr1.cmp(&cidr3), Ordering::Less);
+/// assert_eq!(cidr3.cmp(&cidr1), Ordering::Greater);
+/// ```
+impl Ord for Ipv4Cidr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = u32::from_be_bytes(self.octets);
+        let b = u32::from_be_bytes(other.octets);
+
+        match a.cmp(&b) {
+            Ordering::Equal => self.bits.cmp(&other.bits),
+            ord => ord,
+        }
+    }
+}
+
 pub struct Ipv4Hosts {
     cursor: u32,
     end: Option<u32>,
+}
+
+impl Ipv4Hosts {
+    /// Returns the number of IPv4 addresses in the range.
+    ///
+    /// This method calculates the total number of IPv4 addresses between the current cursor
+    /// position and the end of the range. If there's no defined end (i.e., the range extends
+    /// to the maximum possible IPv4 address), it returns the number of addresses from the
+    /// cursor to the end of the IPv4 address space.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr: Ipv4Cidr = "192.168.0.0/24".parse().unwrap();
+    /// let hosts = cidr.hosts();
+    /// assert_eq!(hosts.len(), 254);
+    ///
+    /// let cidr: Ipv4Cidr = "10.0.0.0/8".parse().unwrap();
+    /// let hosts = cidr.hosts();
+    /// assert_eq!(hosts.len(), 16777214);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> u32 {
+        debug_assert!(!(self.end.is_none() && self.cursor == 0));
+
+        match self.end {
+            Some(end) => end - self.cursor,
+            None => u32::MAX - self.cursor + 1,
+        }
+    }
 }
 
 impl Iterator for Ipv4Hosts {
@@ -379,12 +493,7 @@ impl Iterator for Ipv4Hosts {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = match self.end {
-            Some(end) => end - self.cursor,
-            None if self.cursor > 0 => u32::MAX - self.cursor + 1,
-            None => return (usize::MAX, None),
-        };
-
+        let n: u32 = self.len();
         usize::try_from(n).map_or((usize::MAX, None), |n| (n, Some(n)))
     }
 
@@ -585,6 +694,33 @@ impl Ipv6Cidr {
             }
         }
     }
+
+    /// Returns the supernet of this CIDR block, if possible.
+    ///
+    /// The supernet is the next larger network that contains this CIDR block.
+    /// If the current CIDR block has 0 bits (representing the entire IPv6 address space),
+    /// this method returns `None` as there is no larger network possible.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 48).unwrap();
+    /// let supernet = cidr.supernet().unwrap();
+    /// assert_eq!(supernet, Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 47).unwrap());
+    ///
+    /// let entire_space = Ipv6Cidr::new([0, 0, 0, 0, 0, 0, 0, 0], 0).unwrap();
+    /// assert_eq!(entire_space.supernet(), None);
+    /// ```
+    #[inline]
+    pub fn supernet(&self) -> Option<Ipv6Cidr> {
+        match self.bits() {
+            0 => None,
+            bits => Some(Ipv6Cidr::from_ip(self.network_addr(), bits - 1).unwrap()),
+        }
+    }
+
     /// Returns the subnet mask of the CIDR block.
     ///
     /// # Examples
@@ -754,9 +890,95 @@ impl FromStr for Ipv6Cidr {
     }
 }
 
+/// Implements partial ordering for `Ipv6Cidr`.
+///
+/// This implementation delegates to the `Ord` implementation.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv6Cidr;
+/// use std::cmp::Ordering;
+///
+/// let cidr1 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 48).unwrap();
+/// let cidr2 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+/// let cidr3 = Ipv6Cidr::new([0x2001, 0xdb9, 0, 0, 0, 0, 0, 0], 48).unwrap();
+///
+/// assert_eq!(cidr1.partial_cmp(&cidr2), Some(Ordering::Less));
+/// assert_eq!(cidr1.partial_cmp(&cidr3), Some(Ordering::Less));
+/// assert_eq!(cidr3.partial_cmp(&cidr1), Some(Ordering::Greater));
+/// ```
+impl PartialOrd for Ipv6Cidr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Implements total ordering for `Ipv6Cidr`.
+///
+/// CIDRs are first compared by their network address, then by their prefix length.
+///
+/// # Examples
+///
+/// ```
+/// use cidrs::Ipv6Cidr;
+/// use std::cmp::Ordering;
+///
+/// let cidr1 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 48).unwrap();
+/// let cidr2 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+/// let cidr3 = Ipv6Cidr::new([0x2001, 0xdb9, 0, 0, 0, 0, 0, 0], 48).unwrap();
+///
+/// assert_eq!(cidr1.cmp(&cidr2), Ordering::Less);
+/// assert_eq!(cidr1.cmp(&cidr3), Ordering::Less);
+/// assert_eq!(cidr3.cmp(&cidr1), Ordering::Greater);
+/// ```
+impl Ord for Ipv6Cidr {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let a = u128::from_be_bytes(self.octets);
+        let b = u128::from_be_bytes(other.octets);
+
+        match a.cmp(&b) {
+            Ordering::Equal => self.bits.cmp(&other.bits),
+            ord => ord,
+        }
+    }
+}
+
 pub struct Ipv6Hosts {
     cursor: u128,
     end: Option<u128>,
+}
+
+impl Ipv6Hosts {
+    /// Returns the number of IPv6 addresses in the range.
+    ///
+    /// This method calculates the total number of IPv6 addresses between the current cursor
+    /// position and the end of the range. If there's no defined end (i.e., the range extends
+    /// to the maximum possible IPv6 address), it returns the number of addresses from the
+    /// cursor to the end of the IPv6 address space.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr: Ipv6Cidr = "2001:db8::/120".parse().unwrap();
+    /// let hosts = cidr.hosts();
+    /// assert_eq!(hosts.len(), 254);
+    ///
+    /// let cidr: Ipv6Cidr = "2001:db8::/64".parse().unwrap();
+    /// let hosts = cidr.hosts();
+    /// assert_eq!(hosts.len(), 18446744073709551614);
+    /// ```
+    #[inline]
+    pub const fn len(&self) -> u128 {
+        debug_assert!(!(self.end.is_none() && self.cursor == 0));
+
+        match self.end {
+            Some(end) => end - self.cursor,
+            None => u128::MAX - self.cursor + 1,
+        }
+    }
 }
 
 impl Iterator for Ipv6Hosts {
@@ -779,12 +1001,7 @@ impl Iterator for Ipv6Hosts {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = match self.end {
-            Some(end) => end - self.cursor,
-            None if self.cursor > 0 => u128::MAX - self.cursor + 1,
-            None => return (usize::MAX, None),
-        };
-
+        let n: u128 = self.len();
         usize::try_from(n).map_or((usize::MAX, None), |n| (n, Some(n)))
     }
 
