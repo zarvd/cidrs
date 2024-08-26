@@ -22,11 +22,9 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-      - name: Install just
-        uses: extractions/setup-just@v2
       - name: Run lint
         run: |
-          just lint
+          cargo x lint
 
   unit-test:
     name: Unit test
@@ -40,10 +38,9 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-      - name: Install just
-        uses: extractions/setup-just@v2
-      - name: Install cargo-nextest
-        uses: taiki-e/install-action@nextest
+      - name: Install required tools
+        run: |
+          cargo x install-tools
       - name: Run tests
         run: |
-          just unit-test
+          cargo x test

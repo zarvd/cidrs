@@ -1,0 +1,11 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+authors = ["zarvd <jialun.cai@pm.me>"]
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+console = "0.15"
+clap = { version = "4", features = ["derive"] }
+duct = "0.13"
