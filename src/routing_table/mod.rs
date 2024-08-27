@@ -1,10 +1,10 @@
-pub(crate) mod tree_bitmap;
+mod tree_bitmap;
 
 use core::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-use crate::cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
-
 use tree_bitmap::TreeBitmap;
+
+use crate::cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
 
 /// A routing table for IPv4 CIDRs.
 pub struct Ipv4CidrRoutingTable<V> {
