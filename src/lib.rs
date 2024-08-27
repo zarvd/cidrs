@@ -32,10 +32,8 @@ mod aggregate;
 #[cfg(feature = "routing-table")]
 mod routing_table;
 
-#[cfg(feature = "routing-table")]
-pub use routing_table::{CidrRoutingTable, Ipv4CidrRoutingTable, Ipv6CidrRoutingTable};
-
+pub use aggregate::{aggregate, aggregate_ipv4, aggregate_ipv6, partition_by_ip_family};
 pub use cidr::{Cidr, Ipv4Cidr, Ipv6Cidr};
 pub use error::{Error, Result};
-
-pub use aggregate::{aggregate, aggregate_ipv4, aggregate_ipv6, partition_by_ip_family};
+#[cfg(feature = "routing-table")]
+pub use routing_table::{CidrRoutingTable, Ipv4CidrRoutingTable, Ipv6CidrRoutingTable};

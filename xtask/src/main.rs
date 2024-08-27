@@ -1,8 +1,9 @@
+use std::fmt::Debug;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use console::style;
 use duct::cmd;
-use std::fmt::Debug;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -28,14 +29,14 @@ enum Action {
 }
 
 fn fmt() -> Result<()> {
-    println!("{}", style("cargo fmt").bold());
-    cmd!("cargo", "fmt").run()?;
+    println!("{}", style("cargo +nightly fmt").bold());
+    cmd!("cargo", "+nightly", "fmt").run()?;
     Ok(())
 }
 
 fn check_fmt() -> Result<()> {
-    println!("{}", style("cargo fmt --check").bold());
-    cmd!("cargo", "fmt", "--check").run()?;
+    println!("{}", style("cargo +nightly fmt --check").bold());
+    cmd!("cargo", "+nightly", "fmt", "--check").run()?;
     Ok(())
 }
 

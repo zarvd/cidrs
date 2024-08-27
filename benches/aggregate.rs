@@ -1,15 +1,13 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-
 use cidrs::Ipv4Cidr;
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn ipv4_fixture() -> Vec<Ipv4Cidr> {
     (0..255)
-        .map(|i| {
+        .flat_map(|i| {
             (0..=255)
                 .map(|j| Ipv4Cidr::new([i, j, 0, 0], 16).unwrap())
                 .collect::<Vec<_>>()
         })
-        .flatten()
         .collect()
 }
 
