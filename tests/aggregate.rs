@@ -56,3 +56,34 @@ fn ipv4_basic() {
         assert_eq!(actual, expected, "input: {input:?}");
     }
 }
+
+#[test]
+fn ipv4_full() {
+    {
+        let cidrs: Vec<Ipv4Cidr> = (0..=255)
+            .flat_map(|i| {
+                (0..=255)
+                    .map(|j| Ipv4Cidr::new([i, j, 0, 0], 16).unwrap())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let expected = vec![Ipv4Cidr::new([0, 0, 0, 0], 0).unwrap()];
+        let actual = aggregate_ipv4(&cidrs);
+        assert_eq!(actual, expected);
+    }
+
+    {
+        let cidrs: Vec<Ipv4Cidr> = (0..=255)
+            .flat_map(|i| {
+                (0..=255)
+                    .map(|j| Ipv4Cidr::new([192, 168, i, j], 32).unwrap())
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+
+        let expected = vec![Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap()];
+        let actual = aggregate_ipv4(&cidrs);
+        assert_eq!(actual, expected);
+    }
+}

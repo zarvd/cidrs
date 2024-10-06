@@ -280,6 +280,29 @@ impl Ipv4Cidr {
         addr & mask == cidr
     }
 
+    /// Returns [`true`] if the CIDR block contains the given CIDR block.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use cidrs::Ipv4Cidr;
+    ///
+    /// let cidr1 = Ipv4Cidr::new([192, 168, 0, 0], 24).unwrap();
+    /// let cidr2 = Ipv4Cidr::new([192, 168, 1, 0], 24).unwrap();
+    /// let cidr3 = Ipv4Cidr::new([192, 168, 0, 0], 16).unwrap();
+    ///
+    /// assert!(!cidr1.contains_cidr(&cidr2));
+    /// assert!(!cidr2.contains_cidr(&cidr1));
+    /// assert!(!cidr1.contains_cidr(&cidr3));
+    /// assert!(!cidr2.contains_cidr(&cidr3));
+    /// assert!(cidr3.contains_cidr(&cidr1));
+    /// assert!(cidr3.contains_cidr(&cidr2));
+    /// ```
+    #[inline]
+    pub const fn contains_cidr(&self, other: &Self) -> bool {
+        self.overlaps(other) && self.bits() <= other.bits
+    }
+
     /// Returns [`true`] if the CIDR block overlaps with the given CIDR block.
     ///
     /// # Examples
@@ -766,7 +789,7 @@ impl Ipv6Cidr {
         self.bits
     }
 
-    /// Returns `true` if the CIDR block contains the given IPv6 address.
+    /// Returns [`true`] if the CIDR block contains the given IPv6 address.
     ///
     /// # Examples
     ///
@@ -788,7 +811,30 @@ impl Ipv6Cidr {
         addr & mask == cidr
     }
 
-    /// Returns `true` if the CIDR block overlaps with the given CIDR block.
+    /// Returns [`true`] if the CIDR block contains the given CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use cidrs::Ipv6Cidr;
+    ///
+    /// let cidr1 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 64).unwrap();
+    /// let cidr2 = Ipv6Cidr::new([0x2001, 0xdb8, 1, 0, 0, 0, 0, 0], 64).unwrap();
+    /// let cidr3 = Ipv6Cidr::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0], 32).unwrap();
+    ///
+    /// assert!(!cidr1.contains_cidr(&cidr2));
+    /// assert!(!cidr2.contains_cidr(&cidr1));
+    /// assert!(!cidr1.contains_cidr(&cidr3));
+    /// assert!(!cidr2.contains_cidr(&cidr3));
+    /// assert!(cidr3.contains_cidr(&cidr1));
+    /// assert!(cidr3.contains_cidr(&cidr2));
+    /// ```
+    #[inline]
+    pub const fn contains_cidr(&self, other: &Self) -> bool {
+        self.overlaps(other) && self.bits() <= other.bits
+    }
+
+    /// Returns [`true`] if the CIDR block overlaps with the given CIDR block.
     ///
     /// # Examples
     ///
@@ -1152,7 +1198,7 @@ impl Cidr {
         }
     }
 
-    /// Returns `true` if the CIDR block contains the given IP address.
+    /// Returns [`true`] if the CIDR block contains the given IP address.
     ///
     /// # Examples
     ///
@@ -1177,7 +1223,39 @@ impl Cidr {
         }
     }
 
-    /// Returns `true` if the CIDR block overlaps with the given CIDR block.
+    /// Returns [`true`] if the CIDR block contains the given CIDR block.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use core::net::IpAddr;
+    /// use cidrs::Cidr;
+    ///
+    /// let ipv4_cidr1 = Cidr::new(IpAddr::V4([192, 168, 1, 0].into()), 24).unwrap();
+    /// let ipv4_cidr2 = Cidr::new(IpAddr::V4([192, 168, 0, 0].into()), 16).unwrap();
+    ///
+    /// let ipv6_cidr1 = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0x1, 0, 0, 0, 0, 0].into()), 48).unwrap();
+    /// let ipv6_cidr2 = Cidr::new(IpAddr::V6([0x2001, 0xdb8, 0, 0, 0, 0, 0, 0].into()), 32).unwrap();
+    ///
+    /// assert!(!ipv4_cidr1.contains_cidr(&ipv4_cidr2));
+    /// assert!(ipv4_cidr2.contains_cidr(&ipv4_cidr1));
+    ///
+    /// assert!(!ipv6_cidr1.contains_cidr(&ipv6_cidr2));
+    /// assert!(ipv6_cidr2.contains_cidr(&ipv6_cidr1));
+    ///
+    /// assert!(!ipv4_cidr1.contains_cidr(&ipv6_cidr1));
+    /// assert!(!ipv6_cidr1.contains_cidr(&ipv4_cidr1));
+    /// ```
+    #[inline]
+    pub const fn contains_cidr(&self, other: &Cidr) -> bool {
+        match (self, other) {
+            (Cidr::V4(lh), Cidr::V4(rh)) => lh.contains_cidr(rh),
+            (Cidr::V6(lh), Cidr::V6(rh)) => lh.contains_cidr(rh),
+            _ => false,
+        }
+    }
+
+    /// Returns [`true`] if the CIDR block overlaps with the given CIDR block.
     ///
     /// # Examples
     ///
